@@ -1,0 +1,14 @@
+{
+  "grants": {
+    "invoice-assistant": [
+      { "server": "erp-mcp", "tool": "get_invoice", "actions": ["read"] },
+      { "server": "erp-mcp", "tool": "issue_refund", "actions": ["write"] }
+    ]
+  },
+  "tools": {
+    "erp-mcp": {
+      "get_invoice": { "impact": "low", "required_entitlement": "finance:read" },
+      "issue_refund": { "impact": "high", "required_entitlement": "finance:refund" }
+    }
+  }
+}

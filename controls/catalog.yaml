@@ -1,0 +1,80 @@
+# Control catalog for agent access to tools, APIs, and data.
+# Field reference: controls/README.md
+version: 0.1.0
+controls:
+  - id: AAC-GW-01
+    title: Mediate all agent tool and API calls through a gateway
+    objective: >-
+      Agents reach tools, MCP servers, and APIs only through a gateway that
+      enforces policy. Network rules block direct paths to backends.
+    enforcement: [gateway, network]
+    owasp_llm_2025: [LLM06]
+    status: planned
+
+  - id: AAC-ID-01
+    title: Give each agent its own workload identity
+    objective: >-
+      Each agent authenticates with a distinct, short-lived credential bound
+      to its workload. Agents never share credentials or reuse user tokens.
+    enforcement: [identity-provider, gateway]
+    owasp_llm_2025: [LLM06]
+    status: planned
+
+  - id: AAC-AZ-01
+    title: Grant tools and actions per agent, deny by default
+    objective: >-
+      Each agent is authorized for an explicit list of server, tool, and
+      action grants. Any request outside that list is denied.
+    enforcement: [policy-decision-point]
+    owasp_llm_2025: [LLM06]
+    status: implemented
+    implementation: policies/tool_authz
+
+  - id: AAC-AZ-02
+    title: Enforce the user's entitlements on delegated calls
+    objective: >-
+      When an agent acts on behalf of a user, a call is allowed only if that
+      user holds the entitlement the tool requires.
+    enforcement: [policy-decision-point]
+    owasp_llm_2025: [LLM02, LLM06]
+    status: implemented
+    implementation: policies/tool_authz
+
+  - id: AAC-AZ-03
+    title: Require approval for high-impact actions
+    objective: >-
+      Tools marked high-impact (for example writes, payments, deletions) run
+      only when the request carries a recorded approval.
+    enforcement: [policy-decision-point, gateway]
+    owasp_llm_2025: [LLM06]
+    status: implemented
+    implementation: policies/tool_authz
+
+  - id: AAC-AU-01
+    title: Record every authorization decision
+    objective: >-
+      Each decision records the agent, user, tool, action, outcome, and the
+      reasons for a denial, so that agent activity can be reconstructed.
+    enforcement: [policy-decision-point, audit-log]
+    owasp_llm_2025: [LLM06]
+    status: partial
+    implementation: policies/tool_authz
+
+  - id: AAC-CF-01
+    title: Screen prompts and responses at the gateway
+    objective: >-
+      Agent inputs and outputs pass through a content filter that can block
+      prompt-injection attempts and sensitive data before they reach tools
+      or users.
+    enforcement: [gateway, content-filter]
+    owasp_llm_2025: [LLM01, LLM02]
+    status: planned
+
+  - id: AAC-RL-01
+    title: Limit request rate and token use per agent
+    objective: >-
+      Per-agent quotas cap requests and tokens so that a malfunctioning or
+      manipulated agent cannot exhaust capacity or budget.
+    enforcement: [gateway]
+    owasp_llm_2025: [LLM10]
+    status: planned

@@ -1,0 +1,5 @@
+{
+  "agent": { "id": "invoice-assistant", "identity_verified": true },
+  "user": { "id": "u-3003", "entitlements": ["finance:read", "finance:refund"] },
+  "request": { "server": "erp-mcp", "tool": "issue_refund", "action": "write" }
+}
