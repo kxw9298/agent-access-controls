@@ -2,7 +2,7 @@
 
 Executable security controls for governing how AI agents access enterprise tools, MCP servers, APIs, and data.
 
-> **Status: pre-alpha.** The control catalog and the first authorization policy are in progress. Not production-ready; interfaces will change.
+> **Status: pre-alpha (v0.1.0).** The control catalog and the first authorization policy are released for review. Not production-ready; interfaces will change.
 
 ## The problem
 
