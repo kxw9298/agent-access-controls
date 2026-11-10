@@ -1,6 +1,6 @@
 # Threat model (draft)
 
-**Scope:** AI agents that call enterprise tools, MCP servers, and APIs on behalf of users, through the gateway described in [architecture.md](architecture.md). Model training, model hosting, and the internal security of individual tools are out of scope.
+**Scope:** AI agents that call enterprise tools, MCP servers, and APIs on behalf of users, through the gateway described in [architecture.md](architecture.md), and AI agents that propose infrastructure changes applied by a pipeline, as described in [approval-binding.md](approval-binding.md). Model training, model hosting, and the internal security of individual tools are out of scope.
 
 **Assets:** enterprise data reachable through tools; the ability to change records or move money; agent and user credentials; the audit trail.
 
@@ -20,9 +20,15 @@ Where a threat matches an item in the [OWASP Top 10 for LLM Applications 2025](h
 | T6 | A high-impact action runs without human review | LLM06 | AAC-AZ-03 |
 | T7 | After an incident, nobody can reconstruct what an agent did or why it was allowed | — | AAC-AU-01 |
 | T8 | A runaway agent exhausts request capacity or token budget | LLM10 | AAC-RL-01 |
+| T9 | An agent proposes a destructive or out-of-scope infrastructure change | LLM06 | AAC-CH-01 |
+| T10 | The change applied differs from the change a person approved (re-planning or substitution after approval) | LLM01, LLM06 | AAC-CH-02, AAC-CH-03 |
+| T11 | An approval is reused by a different agent or user, approved by the requester, or used after it has gone stale | LLM06 | AAC-CH-04 |
+| T12 | After a change, nobody can show which approval authorized it | — | AAC-AU-02 |
 
 ## Open items
 
-- Decision-record schema and log retention (v0.2).
+- Decision-record schema and log retention (v0.4).
+- Deriving agent, user, and approver identity for the change path from verified tokens and CI approval records (v0.2).
+- Paths to infrastructure that bypass the pipeline (see the limits in [approval-binding.md](approval-binding.md)).
 - Threats specific to MCP server registration and tool metadata integrity.
 - Mapping to the CSA AI Controls Matrix (v1.0).

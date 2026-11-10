@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Design for approval binding on agent-proposed infrastructure changes (`docs/approval-binding.md`).
+- Planned controls AAC-CH-01 to AAC-CH-04 and AAC-AU-02 in the catalog, and threats T9 to T12 in the threat model.
+
+### Changed
+
+- Roadmap: v0.2 to v0.5 now cover the change path (Terraform plan policy, approval bound to the plan digest, Kubernetes admission demonstration, signed records, incident-based tests). Gateway deployment examples move to a later stage.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added

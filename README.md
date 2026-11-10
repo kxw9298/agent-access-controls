@@ -1,6 +1,6 @@
 # agent-access-controls
 
-Executable security controls for governing how AI agents access enterprise tools, MCP servers, APIs, and data.
+Executable security controls for governing what AI agents can access and change: enterprise tools, MCP servers, APIs, data, and cloud infrastructure.
 
 > **Status: pre-alpha (v0.1.0).** The control catalog and the first authorization policy are released for review. Not production-ready; interfaces will change.
 
@@ -11,6 +11,7 @@ AI agents now act on enterprise systems. They call internal APIs, invoke tools t
 - an agent is allowed more tools or actions than its task needs;
 - an agent retrieves data the user it acts for is not entitled to see;
 - a high-impact action (a payment, a deletion) runs without anyone approving it;
+- a person approves one infrastructure change, and the change that actually runs is a different one;
 - nobody can reconstruct afterward what an agent did and why it was allowed.
 
 The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-10/) names several of these, including LLM06 Excessive Agency and LLM02 Sensitive Information Disclosure. Guidance on *what* to control exists. A tested, deployable implementation of those controls is harder to find.
@@ -22,6 +23,7 @@ The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-1
 | Control catalog: objective, enforcement point, and risks addressed for each control | [`controls/`](controls/) | In progress |
 | Policy-as-code: authorization policies in Rego for [Open Policy Agent](https://www.openpolicyagent.org/), with unit tests | [`policies/`](policies/) | First policy |
 | Reference architecture and threat model | [`docs/`](docs/) | Draft |
+| Approval binding for agent-proposed infrastructure changes: design in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/` | Planned for v0.2 |
 | Deployment examples: Infrastructure-as-Code for an open-source gateway on Kubernetes and for a managed cloud API gateway | `deploy/` | Planned |
 
 ## Design principles
@@ -49,15 +51,27 @@ opa eval \
   "data.agentaccess.tool_authz.decision"
 ```
 
+## Two enforcement paths
+
+An agent can change things in two ways, and each needs its own enforcement point:
+
+- **Tool-call path.** The agent calls a tool or API through a gateway. The policy in [`policies/tool_authz`](policies/tool_authz/) decides each call. This shipped in v0.1.
+- **Change path.** The agent proposes an infrastructure change (a Terraform plan) and a pipeline applies it. v0.2 adds controls here: a policy gate on the plan, and human approval bound to the exact plan that is applied.
+
+See [`docs/approval-binding.md`](docs/approval-binding.md) for the change-path design and its limits.
+
 ## Roadmap
 
 | Version | Scope |
 | --- | --- |
 | v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI |
-| v0.2 | Audit-log schema and decision logging; content-filter integration points |
-| v0.3 | Deployment example: open-source gateway on Kubernetes, with workload identity |
-| v0.4 | Deployment example: managed cloud API gateway |
-| v1.0 | Control baseline mapped to OWASP and the CSA AI Controls Matrix; end-to-end tests; adopter documentation |
+| v0.2 | Change path, first slice: policy gate on Terraform plans; human approval bound to the saved-plan digest and to the agent and user identity; a demonstration that a substituted plan is refused |
+| v0.3 | The same approval binding at a second interface: a Kubernetes admission demonstration |
+| v0.4 | Signed records of authorized changes (in-toto, Sigstore); decision-record schema |
+| v0.5 | Test suite modeled on public incidents, run in one CI system and one local Kubernetes cluster, with published results |
+| Later | Gateway deployment examples for the tool-call path (Kubernetes, managed cloud API gateway); approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix |
+
+Not covered, and not planned for these versions: administrator break-glass access, CI systems other than GitHub Actions, and production hardening.
 
 ## Related work
 
@@ -66,6 +80,8 @@ This project builds on existing gateways and guidance rather than replacing them
 - [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llm-top-10/)
 - [CSA AI Controls Matrix](https://cloudsecurityalliance.org/artifacts/ai-controls-matrix/)
 - [Open Policy Agent](https://www.openpolicyagent.org/)
+- [Terraform saved plans](https://developer.hashicorp.com/terraform/cli/commands/plan#out-filename)
+- [in-toto attestations](https://github.com/in-toto/attestation) and [Sigstore](https://www.sigstore.dev/)
 - [agentgateway](https://agentgateway.dev/)
 - [Envoy AI Gateway](https://aigateway.envoyproxy.io/)
 

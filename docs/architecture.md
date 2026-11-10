@@ -48,6 +48,10 @@ The gateway sends the policy decision point a document of this shape:
 
 Grants and tool metadata are supplied as policy data. See [`examples/tool_authz/data.json`](../examples/tool_authz/data.json).
 
+## Change path (v0.2)
+
+The flow above covers calls an agent makes through a gateway. Infrastructure changes an agent proposes through a pipeline are enforced at a different point, the executor that applies the change. See [approval-binding.md](approval-binding.md).
+
 ## Deployment targets (planned)
 
 - An open-source gateway on Kubernetes, with workload identity and network policies.

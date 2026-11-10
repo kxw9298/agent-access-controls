@@ -22,6 +22,8 @@ ENFORCEMENT = {
     "policy-decision-point",
     "audit-log",
     "content-filter",
+    "ci-pipeline",
+    "executor",
 }
 ID_PATTERN = re.compile(r"^AAC-[A-Z]{2}-\d{2}$")
 OWASP_PATTERN = re.compile(r"^LLM(0[1-9]|10)$")
