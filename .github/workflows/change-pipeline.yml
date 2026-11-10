@@ -166,7 +166,7 @@ jobs:
         if: steps.check.outputs.allow != 'true'
         run: |
           expected='["change requires approval and none was provided"]'
-          if [ "${{ github.event_name }}" = "pull_request" ] &&
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] &&
             [ "$(jq -c '.reasons' "$RUNNER_TEMP/decision.json")" = "$expected" ]; then
             echo "::notice::Refused as expected: pull request runs have no approval, so the plan was not applied."
             exit 0
