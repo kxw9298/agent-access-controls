@@ -1,0 +1,11 @@
+{
+  "change_policy": {
+    "allowed_resource_types": [
+      "google_storage_bucket",
+      "google_storage_bucket_iam_member",
+      "google_pubsub_topic"
+    ],
+    "protected_address_prefixes": ["google_storage_bucket.audit_logs"],
+    "high_risk_resource_types": ["google_storage_bucket_iam_member"]
+  }
+}
