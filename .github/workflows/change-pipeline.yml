@@ -15,6 +15,8 @@ on:
       release:
         description: Value for the demo configuration's "release" variable
         default: v1
+  push:
+    branches: [tmp/verify-pipeline]
   pull_request:
     paths:
       - policies/**
