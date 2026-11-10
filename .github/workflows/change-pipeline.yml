@@ -1,0 +1,176 @@
+# Reference pipeline for the change path.
+#
+# plan  - verifies the workflow's identity, makes a Terraform saved plan,
+#         checks it against the plan policy, and publishes its digest.
+# apply - waits for a reviewer on the protected environment, then applies
+#         the plan only if the approval check passes for the exact plan file
+#         it downloaded.
+#
+# Setup and limits: examples/terraform_pipeline/README.md
+name: Change pipeline (reference)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Value for the demo configuration's "release" variable
+        default: v1
+  pull_request:
+    paths:
+      - policies/**
+      - scripts/ci/**
+      - examples/terraform_pipeline/**
+      - .github/workflows/change-pipeline.yml
+
+permissions:
+  contents: read
+
+env:
+  AUDIENCE: agent-access-controls
+  APPROVAL_ENVIRONMENT: change-approval
+  PLAN_MAX_AGE_HOURS: "8"
+  TF_DIR: examples/terraform_pipeline
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      planned_at: ${{ steps.plan.outputs.planned_at }}
+      agent: ${{ steps.identity.outputs.agent }}
+      requested_by: ${{ steps.identity.outputs.requested_by }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: latest
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Verify workload identity
+        id: identity
+        run: |
+          scripts/ci/verify_identity.sh "$AUDIENCE" "$RUNNER_TEMP/identity.json"
+          echo "agent=$(jq -r '.agent' "$RUNNER_TEMP/identity.json")" >> "$GITHUB_OUTPUT"
+          echo "requested_by=$(jq -r '.requested_by' "$RUNNER_TEMP/identity.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Plan
+        id: plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_release: ${{ inputs.release || 'v1' }}
+        run: |
+          terraform init -input=false -no-color
+          terraform plan -input=false -no-color -out=tfplan
+          terraform show -json tfplan > "$RUNNER_TEMP/plan.json"
+          echo "plan_sha256=$(sha256sum tfplan | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "planned_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Check the plan against policy
+        run: |
+          opa eval -f raw -d policies/terraform_plan/terraform_plan.rego \
+            -d "$TF_DIR/policy-data.json" -i "$RUNNER_TEMP/plan.json" \
+            "data.agentaccess.terraform_plan.decision" > "$RUNNER_TEMP/plan-decision.json"
+          {
+            echo "### Plan for review"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Plan SHA-256 | \`${{ steps.plan.outputs.plan_sha256 }}\` |"
+            echo "| Agent | \`${{ steps.identity.outputs.agent }}\` |"
+            echo "| Requested by | \`${{ steps.identity.outputs.requested_by }}\` |"
+            echo "| Requires approval | $(jq -r '.requires_approval' "$RUNNER_TEMP/plan-decision.json") |"
+            echo
+            echo '```json'
+            jq . "$RUNNER_TEMP/plan-decision.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(jq -r '.allow' "$RUNNER_TEMP/plan-decision.json")" != "true" ]; then
+            echo "::error::plan denied by policy"
+            jq -r '.deny_reasons[] | "  - " + .' "$RUNNER_TEMP/plan-decision.json"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_DIR }}/tfplan
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    name: Apply
+    needs: plan
+    runs-on: ubuntu-latest
+    # Reviewers are configured on this environment. Pull request runs skip
+    # the environment and only prove that an unapproved plan is refused.
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'change-approval' || '' }}
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: latest
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_DIR }}
+
+      - name: Verify workload identity
+        run: scripts/ci/verify_identity.sh "$AUDIENCE" "$RUNNER_TEMP/identity.json"
+
+      - name: Read the approval from the environment's review history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_SHA256: ${{ needs.plan.outputs.plan_sha256 }}
+          PLAN_AGENT: ${{ needs.plan.outputs.agent }}
+          PLAN_REQUESTED_BY: ${{ needs.plan.outputs.requested_by }}
+          PLANNED_AT: ${{ needs.plan.outputs.planned_at }}
+        run: scripts/ci/build_approval.sh "$APPROVAL_ENVIRONMENT" "$RUNNER_TEMP/approval.json"
+
+      - name: Execution check
+        id: check
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init -input=false -no-color
+          "$GITHUB_WORKSPACE/scripts/ci/execution_check.sh" tfplan "$RUNNER_TEMP/identity.json" \
+            "$RUNNER_TEMP/approval.json" policy-data.json "$RUNNER_TEMP/decision.json"
+          jq . "$RUNNER_TEMP/decision.json"
+          echo "allow=$(jq -r '.allow' "$RUNNER_TEMP/decision.json")" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Execution check"
+            echo
+            echo '```json'
+            jq . "$RUNNER_TEMP/decision.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply the approved plan
+        if: steps.check.outputs.allow == 'true'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -input=false -no-color tfplan
+
+      - name: Refuse
+        if: steps.check.outputs.allow != 'true'
+        run: |
+          expected='["change requires approval and none was provided"]'
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] &&
+            [ "$(jq -c '.reasons' "$RUNNER_TEMP/decision.json")" = "$expected" ]; then
+            echo "::notice::Refused as expected: pull request runs have no approval, so the plan was not applied."
+            exit 0
+          fi
+          echo "::error::apply refused"
+          jq -r '.reasons[] | "  - " + .' "$RUNNER_TEMP/decision.json"
+          exit 1
