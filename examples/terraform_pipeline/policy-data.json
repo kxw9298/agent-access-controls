@@ -1,0 +1,7 @@
+{
+  "change_policy": {
+    "allowed_resource_types": ["terraform_data"],
+    "protected_address_prefixes": [],
+    "high_risk_resource_types": ["terraform_data"]
+  }
+}
