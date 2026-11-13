@@ -8,9 +8,9 @@ PLAN_POLICY="$ROOT/policies/terraform_plan/terraform_plan.rego"
 APPROVAL_POLICY="$ROOT/policies/change_approval/change_approval.rego"
 POLICY_DATA="$ROOT/examples/terraform_pipeline/policy-data.json"
 
-for tool in terraform opa jq sha256sum; do
-  command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 2; }
-done
+# shellcheck source=scripts/lib/portable.sh
+. "$ROOT/scripts/lib/portable.sh"
+require_tools terraform opa jq
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -22,9 +22,7 @@ REQUESTER="alice"
 APPROVER="bob"
 failures=0
 
-digest() { sha256sum "$1" | cut -d' ' -f1; }
-
-timestamp() { date -u -d "$1" +%Y-%m-%dT%H:%M:%SZ; }
+digest() { sha256_file "$1"; }
 
 # plan_decision <plan file>: evaluate the plan policy on a saved plan.
 plan_decision() {
@@ -74,15 +72,15 @@ echo "plan policy decision: $(plan_decision approved.tfplan)"
 approved_digest="$(digest approved.tfplan)"
 echo "approved plan digest: $approved_digest"
 
-NOW="$(timestamp now)"
+NOW="$(iso_utc_offset 0)"
 approval_record() { # <approver> <expires_at>
   jq -n --arg sha "$approved_digest" --arg agent "$AGENT" --arg requester "$REQUESTER" \
     --arg approver "$1" --arg expires "$2" \
     '{plan_sha256: $sha, agent: $agent, requested_by: $requester, approver: $approver, expires_at: $expires}'
 }
-approval_record "$APPROVER" "$(timestamp '+1 hour')" > approval.json
-approval_record "$APPROVER" "$(timestamp '-1 hour')" > approval-expired.json
-approval_record "$REQUESTER" "$(timestamp '+1 hour')" > approval-self.json
+approval_record "$APPROVER" "$(iso_utc_offset 3600)" > approval.json
+approval_record "$APPROVER" "$(iso_utc_offset -3600)" > approval-expired.json
+approval_record "$REQUESTER" "$(iso_utc_offset 3600)" > approval-self.json
 
 echo
 echo "== Case 1: apply the approved plan"

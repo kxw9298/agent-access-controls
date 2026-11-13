@@ -64,8 +64,12 @@ jobs:
           python scripts/validate_decision_log.py "$RUNNER_TEMP"/decisions/*.json
 
   approval-binding-demo:
-    name: Approval-binding demonstration
-    runs-on: ubuntu-latest
+    name: Approval-binding demonstration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: open-policy-agent/setup-opa@v2.4.0
@@ -74,5 +78,19 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
+      - name: Install jq if missing
+        run: command -v jq >/dev/null || brew install jq
+      - name: Run the baseline without the control
+        run: scripts/demo_baseline_no_binding.sh
       - name: Run the demonstration
         run: scripts/demo_approval_binding.sh
+
+  container-demo:
+    name: Demonstration in a container, no network
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the demo image
+        run: docker build -t agent-access-controls-demo -f containers/demo/Dockerfile .
+      - name: Run the baseline and the demonstration with networking disabled
+        run: docker run --rm --network none agent-access-controls-demo
