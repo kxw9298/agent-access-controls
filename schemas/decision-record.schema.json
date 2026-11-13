@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kxw9298/agent-access-controls/schemas/decision-record.schema.json",
+  "title": "Authorization decision record",
+  "description": "One record per authorization decision made by policies/tool_authz (control AAC-AU-01). This is the value of data.agentaccess.tool_authz.decision. A gateway writes it to the audit log; OPA's own decision log wraps it with a decision ID and timestamp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "allow",
+    "reasons",
+    "agent",
+    "user",
+    "server",
+    "tool",
+    "action",
+    "request_id",
+    "impact",
+    "approval_granted",
+    "approver"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Version of this schema.",
+      "const": "0.2.0"
+    },
+    "allow": {
+      "description": "Outcome of the decision.",
+      "type": "boolean"
+    },
+    "reasons": {
+      "description": "Why the request was denied. Empty when allow is true.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "agent identity not verified",
+          "high-impact action requires approval",
+          "tool metadata incomplete",
+          "tool or action not granted to agent",
+          "unknown tool",
+          "user lacks required entitlement"
+        ]
+      }
+    },
+    "agent": {
+      "description": "Workload identity of the calling agent.",
+      "type": ["string", "null"]
+    },
+    "user": {
+      "description": "User the agent acted for.",
+      "type": ["string", "null"]
+    },
+    "server": {
+      "description": "MCP server or API the call targeted.",
+      "type": ["string", "null"]
+    },
+    "tool": {
+      "description": "Tool the call targeted.",
+      "type": ["string", "null"]
+    },
+    "action": {
+      "description": "Action requested on the tool, such as read or write.",
+      "type": ["string", "null"]
+    },
+    "request_id": {
+      "description": "Caller-supplied request ID, for correlating this record with gateway and backend logs. Null if the request carried none.",
+      "type": ["string", "null"]
+    },
+    "impact": {
+      "description": "Impact level of the tool from policy data. Null when the tool is unknown or its metadata is invalid.",
+      "enum": ["low", "high", null]
+    },
+    "approval_granted": {
+      "description": "Whether the request carried a granted approval.",
+      "type": "boolean"
+    },
+    "approver": {
+      "description": "Identity of the approver named in the request, if any.",
+      "type": ["string", "null"]
+    }
+  },
+  "allOf": [
+    {
+      "description": "An allowed decision has no denial reasons.",
+      "if": { "properties": { "allow": { "const": true } }, "required": ["allow"] },
+      "then": { "properties": { "reasons": { "maxItems": 0 } } }
+    },
+    {
+      "description": "A denied decision states at least one reason.",
+      "if": { "properties": { "allow": { "const": false } }, "required": ["allow"] },
+      "then": { "properties": { "reasons": { "minItems": 1 } } }
+    },
+    {
+      "description": "A high-impact action is allowed only with a granted approval.",
+      "if": {
+        "properties": { "allow": { "const": true }, "impact": { "const": "high" } },
+        "required": ["allow", "impact"]
+      },
+      "then": { "properties": { "approval_granted": { "const": true } } }
+    }
+  ]
+}

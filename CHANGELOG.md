@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Decision-record schema (`schemas/decision-record.schema.json`) for control AAC-AU-01, with valid and invalid examples in `examples/audit/`.
+- `scripts/validate_decision_log.py`, which validates records, checks that the schema's denial reasons match the policy, and runs in CI against real policy output.
+- Decision records now include `schema_version`, `request_id`, `impact`, `approval_granted`, and `approver`.
+- Example input for an approved high-impact request.
+
+### Changed
+
+- The tool-authorization policy denies tools whose metadata is incomplete (`impact` not `low` or `high`, or no `required_entitlement`) with the reason `tool metadata incomplete`. Previously such a tool skipped the approval or entitlement check.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added

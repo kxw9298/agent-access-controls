@@ -21,6 +21,7 @@ The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-1
 | --- | --- | --- |
 | Control catalog: objective, enforcement point, and risks addressed for each control | [`controls/`](controls/) | In progress |
 | Policy-as-code: authorization policies in Rego for [Open Policy Agent](https://www.openpolicyagent.org/), with unit tests | [`policies/`](policies/) | First policy |
+| Decision-record schema for the audit log | [`schemas/`](schemas/) | v0.2 |
 | Reference architecture and threat model | [`docs/`](docs/) | Draft |
 | Deployment examples: Infrastructure-as-Code for an open-source gateway on Kubernetes and for a managed cloud API gateway | `deploy/` | Planned |
 
@@ -49,12 +50,23 @@ opa eval \
   "data.agentaccess.tool_authz.decision"
 ```
 
+## Decision records
+
+Every authorization decision produces a record that follows [`schemas/decision-record.schema.json`](schemas/decision-record.schema.json): outcome, denial reasons, agent, user, tool, action, request ID, impact, and approval. It does not include the user's entitlements or request payload. Examples are in [`examples/audit/`](examples/audit/).
+
+```sh
+pip install jsonschema
+python scripts/validate_decision_log.py
+```
+
+This project defines the record, not the log pipeline. A gateway writes the record to an audit log; OPA's own decision log wraps it with a decision ID and timestamp.
+
 ## Roadmap
 
 | Version | Scope |
 | --- | --- |
 | v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI |
-| v0.2 | Audit-log schema and decision logging; content-filter integration points |
+| v0.2 | Decision-record schema and validation (done); content-filter integration points (planned) |
 | v0.3 | Deployment example: open-source gateway on Kubernetes, with workload identity |
 | v0.4 | Deployment example: managed cloud API gateway |
 | v1.0 | Control baseline mapped to OWASP and the CSA AI Controls Matrix; end-to-end tests; adopter documentation |

@@ -23,6 +23,6 @@ Where a threat matches an item in the [OWASP Top 10 for LLM Applications 2025](h
 
 ## Open items
 
-- Decision-record schema and log retention (v0.2).
+- Log retention and tamper protection. The decision-record schema is in v0.2; the log pipeline is not defined yet.
 - Threats specific to MCP server registration and tool metadata integrity.
 - Mapping to the CSA AI Controls Matrix (v1.0).

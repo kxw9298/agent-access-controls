@@ -139,3 +139,43 @@ test_denies_tool_missing_entitlement if {
 test_complete_metadata_not_flagged if {
 	not "tool metadata incomplete" in tool_authz.deny_reasons with input as refund_with_approval with data.grants as grants with data.tools as tools
 }
+
+# Decision record (schemas/decision-record.schema.json).
+
+test_decision_records_allowed_high_impact_with_approval if {
+	d := tool_authz.decision with input as refund_with_approval with data.grants as grants with data.tools as tools
+	d == {
+		"schema_version": "0.2.0",
+		"allow": true,
+		"reasons": set(),
+		"agent": "invoice-assistant",
+		"user": "u-3003",
+		"server": "erp-mcp",
+		"tool": "issue_refund",
+		"action": "write",
+		"request_id": null,
+		"impact": "high",
+		"approval_granted": true,
+		"approver": "u-4004",
+	}
+}
+
+test_decision_records_request_id if {
+	req := json.patch(read_invoice, [{"op": "add", "path": "/request/id", "value": "req-0001"}])
+	d := tool_authz.decision with input as req with data.grants as grants with data.tools as tools
+	d.request_id == "req-0001"
+}
+
+test_decision_for_unknown_tool_has_null_impact if {
+	d := tool_authz.decision with input as unknown_tool with data.grants as grants with data.tools as tools
+	d.allow == false
+	d.impact == null
+	d.approval_granted == false
+	d.approver == null
+}
+
+test_decision_does_not_log_entitlements if {
+	d := tool_authz.decision with input as refund_with_approval with data.grants as grants with data.tools as tools
+	not d.entitlements
+	not d.input
+}
