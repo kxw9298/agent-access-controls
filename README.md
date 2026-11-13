@@ -63,7 +63,9 @@ Needs Docker only. No cloud account and no network at run time.
 scripts/run_in_container.sh
 ```
 
-It first applies a swapped plan under an approval recorded against a file name (the baseline), then runs the same swap with the approval bound to the plan digest, and refuses it. [`docs/evaluation.md`](docs/evaluation.md) says what this does and does not show, and how to run it without Docker.
+It first applies a swapped plan under an approval recorded against a file name (the baseline), then runs the same swap with the approval bound to the plan digest, and refuses it. Per-case results, including the Terraform state before and after, are written to `results/results.json`.
+
+**Reviewing this project?** Start with [`docs/REVIEWER_QUICKSTART.md`](docs/REVIEWER_QUICKSTART.md), and record findings with [`docs/EXTERNAL_REVIEW_TEMPLATE.md`](docs/EXTERNAL_REVIEW_TEMPLATE.md). [`docs/evaluation.md`](docs/evaluation.md) says what the demonstrations do and do not show.
 
 ## Two enforcement paths
 
