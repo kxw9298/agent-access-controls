@@ -1,0 +1,58 @@
+# Stage 2 of the image path: Kubernetes refuses any pod whose images are not
+# pinned by digest to a digest listed in the "approved-images" ConfigMap.
+#
+# Uses ValidatingAdmissionPolicy, built into Kubernetes 1.30 and later. No
+# extra admission controller is needed.
+#
+# Applies only to namespaces labeled agent-managed=true. If the ConfigMap is
+# missing, pods are refused (parameterNotFoundAction: Deny).
+#
+# Limits: this checks the digest only, not who built or signed the image. It
+# does not cover ephemeral containers added through the pods/ephemeralcontainers
+# subresource, and it does not cover anyone who can edit the ConfigMap or the
+# policy. See docs/image-admission.md.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: approved-image-digests
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  variables:
+    - name: images
+      expression: >-
+        object.spec.containers.map(c, c.image) +
+        (has(object.spec.initContainers) ? object.spec.initContainers.map(c, c.image) : []) +
+        (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.map(c, c.image) : [])
+    - name: approved
+      expression: >-
+        has(params.data) && 'approvedDigests' in params.data ? params.data['approvedDigests'].split(',') : []
+  validations:
+    - expression: variables.images.all(i, i.matches('^[^@\\s]+@sha256:[0-9a-f]{64}$'))
+      message: "every image must be referenced by a sha256 digest, not a tag"
+    - expression: variables.images.all(i, variables.approved.exists(d, i.endsWith('@' + d)))
+      message: "every image digest must be one that was approved"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: approved-image-digests
+spec:
+  policyName: approved-image-digests
+  validationActions: ["Deny"]
+  paramRef:
+    name: approved-images
+    namespace: agent-managed
+    parameterNotFoundAction: Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        agent-managed: "true"
