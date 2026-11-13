@@ -54,11 +54,16 @@ Each case records the expected and observed outcome, the denial reasons, and the
 
 A scenario with no mechanism in a configuration is `unsupported`, with a reason. A scenario that did not run is `not_executed`. A run with any scenario missing, or any mismatch, fails; an error is never counted as protection. Each configuration also lists its trust assumptions. The schema is [`schemas/evaluation-results.schema.json`](../schemas/evaluation-results.schema.json).
 
+## The image path (optional second interface)
+
+If you also want to review the container-image path, see [image-admission.md](image-admission.md). Stage 1 needs only OPA and `jq`; stage 2 needs a Kubernetes 1.30+ cluster such as kind. It is not part of `results.json` and does not run in the container.
+
 ## Not yet covered
 
 - **The hosted approved-apply path.** The reference GitHub Actions pipeline refuses on pull requests in CI. The path where a second reviewer approves a workflow run and the apply job proceeds has not been run end to end. Treat it as pending; it is tracked in [#11](https://github.com/kxw9298/agent-access-controls/issues/11). This page will link the run and its evidence when it exists.
 - **Real products and settings.** The hardened baseline is a model of one design. It has not been run against real GitHub environment protection or any other tool, so do not read its results as what those do.
-- **Anything outside the Terraform and GitHub Actions path.**
+- **Image signing and attestation.** The image path checks a digest only. It does not verify who built the image.
+- **Anything outside the Terraform and GitHub Actions path and the image path described above.**
 
 ## Report what you find
 

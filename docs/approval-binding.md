@@ -28,6 +28,10 @@ Within one GitHub Actions workflow that applies a Terraform saved plan, the exec
 
 Any failed check refuses the apply and reports the reasons.
 
+## What this adds over a hardened pipeline
+
+A pipeline can already stop substitution, re-planning and self-approval without this project: save the plan once per run so it cannot be overwritten, record approval against the run with self-review prevented, and let only the apply job apply. The evaluation shows a modeled version of that design holding on those scenarios (see [evaluation.md](evaluation.md)). So substitution alone is not the argument for this control. What it adds is binding to the agent identity and the requesting user, an approval expiry, and a digest recorded in the approval. Those cases are reported as unsupported for the hardened model. Whether that is worth the extra mechanism is a question for reviewers.
+
 ## Flow
 
 ```mermaid
