@@ -78,3 +78,54 @@ controls:
     enforcement: [gateway]
     owasp_llm_2025: [LLM10]
     status: planned
+
+  - id: AAC-CH-01
+    title: Check agent-proposed infrastructure changes against policy
+    objective: >-
+      A Terraform plan proposed by an agent is evaluated before it can be
+      applied. Changes to out-of-scope resource types or protected resources
+      are denied, and high-risk changes are marked as needing approval.
+    enforcement: [policy-decision-point, ci-pipeline]
+    owasp_llm_2025: [LLM06]
+    status: planned
+
+  - id: AAC-CH-02
+    title: Bind approval to the digest of the exact change
+    objective: >-
+      A human approval of a high-risk change records the digest of the
+      saved plan that was reviewed. The approval is valid for that artifact
+      only.
+    enforcement: [policy-decision-point, ci-pipeline]
+    owasp_llm_2025: [LLM01, LLM06]
+    status: planned
+
+  - id: AAC-CH-03
+    title: Verify the artifact at execution
+    objective: >-
+      The executor recomputes the digest of the plan it is about to apply
+      and refuses to apply it unless the digest matches the approval.
+    enforcement: [executor]
+    owasp_llm_2025: [LLM01, LLM06]
+    status: planned
+
+  - id: AAC-CH-04
+    title: Bind approval to agent and user identity, with expiry
+    objective: >-
+      An approval names the agent that proposed the change and the user it
+      acts for, cannot be given by either of them, and expires. The executor
+      refuses a change whose identities do not match or whose approval is
+      stale.
+    enforcement: [policy-decision-point, executor]
+    owasp_llm_2025: [LLM06]
+    status: planned
+
+  - id: AAC-AU-02
+    title: Produce a signed record of each authorized change
+    objective: >-
+      Each applied change has a signed attestation recording the agent, the
+      delegating user, the change digest, the policy decision, and the
+      approver. The record shows authorization and integrity, not
+      correctness.
+    enforcement: [executor, audit-log]
+    owasp_llm_2025: [LLM06]
+    status: planned

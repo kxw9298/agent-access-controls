@@ -48,7 +48,11 @@ The gateway sends the policy decision point a document of this shape:
 
 Grants and tool metadata are supplied as policy data. See [`examples/tool_authz/data.json`](../examples/tool_authz/data.json).
 
-## Decision record
+## Change path (v0.2)
+
+The flow above covers calls an agent makes through a gateway. Infrastructure changes an agent proposes through a pipeline are enforced at a different point, the executor that applies the change. See [approval-binding.md](approval-binding.md).
+
+## Decision record (tool-call path)
 
 For each query the policy returns a decision record, defined by [`schemas/decision-record.schema.json`](../schemas/decision-record.schema.json). The gateway writes it to the audit log (AAC-AU-01).
 
