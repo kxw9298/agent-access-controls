@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Scenarios every evaluated configuration must cover. A configuration either executes a scenario or reports it as unsupported with a reason. 'attacker_capability' says what the attacker is assumed to be able to do; a configuration's own trust assumptions are recorded in results.json.",
+  "scenarios": [
+    {
+      "id": "approved-plan",
+      "name": "approved plan",
+      "change_authorized": true,
+      "attacker_capability": "none",
+      "description": "The plan that was reviewed and approved is applied unchanged."
+    },
+    {
+      "id": "substituted-plan",
+      "name": "substituted plan",
+      "change_authorized": false,
+      "attacker_capability": "can replace the stored plan after approval and before apply",
+      "description": "A different plan is put where the approved plan was, and the executor is asked to apply it under the existing approval."
+    },
+    {
+      "id": "replan-after-approval",
+      "name": "re-plan after approval",
+      "change_authorized": false,
+      "attacker_capability": "can start a new plan for the same change after approval and ask the executor to apply it",
+      "description": "A new plan is created through the normal planning step after the approval, and the executor is asked to apply it under the earlier approval."
+    },
+    {
+      "id": "different-agent",
+      "name": "different agent",
+      "change_authorized": false,
+      "attacker_capability": "can run the apply step under another workload identity",
+      "description": "The approved plan is executed by an agent other than the one the approval names."
+    },
+    {
+      "id": "expired-approval",
+      "name": "expired approval",
+      "change_authorized": false,
+      "attacker_capability": "can present an approval after it was meant to lapse",
+      "description": "The approved plan is executed after the approval's expiry time."
+    },
+    {
+      "id": "self-approval",
+      "name": "self-approval",
+      "change_authorized": false,
+      "attacker_capability": "the requester can approve their own change",
+      "description": "The person or agent that requested the change is also recorded as its approver."
+    },
+    {
+      "id": "no-approval",
+      "name": "no approval",
+      "change_authorized": false,
+      "attacker_capability": "can ask the executor to apply with no approval",
+      "description": "The executor is asked to apply a plan for which no approval exists."
+    }
+  ]
+}

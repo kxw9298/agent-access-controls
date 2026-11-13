@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# Baseline for scripts/demo_approval_binding.sh: the same plan swap with the
+# Baseline for scripts/demo_approval_binding.sh: the same scenarios with the
 # control removed.
 #
 # It models a pipeline where a reviewer approves a plan and the approval is
 # recorded against a change identifier (here, the plan's file name). The
 # executor checks that an approval exists for that identifier, then applies
-# whatever file it finds. Nothing ties the approval to the contents of the
-# file that is applied.
+# whatever file it finds. It records no digest, no agent identity, no
+# requester and no expiry, so it checks none of them.
 #
-# This is a model of one common weak design, not a measurement of any named
-# product. Tools that tie approval to a specific run or lock the plan file
-# behave differently; see docs/evaluation.md.
+# This is a model of one weak design, not a measurement of any named
+# product and not a stand-in for a well-configured workflow; see
+# scripts/demo_hardened_baseline.sh and docs/evaluation.md.
 #
-# Exit status 0 means the baseline behaved as modeled: the approved plan was
-# applied and the substituted plan was applied too. That second result is a
-# failure of protection, and it is the expected one for this configuration.
-# Exit status 1 means the baseline did not reproduce.
+# Exit status 0 means every case behaved as modeled. Most attack cases are
+# expected to be applied: that matches the model's expectation and is a
+# failure of protection. Exit status 1 means the model did not reproduce.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,7 +25,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 require_tools terraform jq
 
 WORK="$(mktemp -d)"
-results_begin no-binding-baseline approved-plan substituted-plan
+results_begin no-binding-baseline model approved-plan substituted-plan \
+  replan-after-approval different-agent expired-approval self-approval no-approval
+results_assume "Modeled, not measured: it represents a pipeline that records approval against a file name and does not hash what it applies."
+results_assume "The executor checks only that an approval line exists for the plan's file name."
+results_assume "Approvals carry no digest, agent, requester or expiry, so none can be checked."
+results_assume "Anything that can write the plan file can change what is applied."
 trap 'results_end; rm -rf "$WORK"' EXIT
 
 PLAN_FILE="approved.tfplan"
@@ -46,18 +50,10 @@ fresh_dir() {
   terraform init -input=false -no-color >/dev/null
 }
 
-# approve_plan: plan release=v1, show it to the "reviewer", record an approval by name.
-approve_plan() {
-  terraform plan -input=false -no-color -var "release=v1" -out="$PLAN_FILE" >/dev/null
-  echo "reviewer reads the plan: $(terraform show -no-color "$PLAN_FILE" | grep -E 'release' | head -1 | sed 's/^ *//')"
-  echo "$PLAN_FILE approved by bob" > approvals.txt
-  echo "approval recorded for: $PLAN_FILE"
-}
-
 # run_executor: checks for an approval by name, then applies whatever file is there.
 # Sets OBSERVED to applied or blocked.
 run_executor() {
-  if grep -q "^$PLAN_FILE approved by " approvals.txt; then
+  if [ -f approvals.txt ] && grep -q "^$PLAN_FILE approved by " approvals.txt; then
     echo "executor: approval found for $PLAN_FILE, applying"
     terraform apply -input=false -no-color "$PLAN_FILE" >/dev/null
     OBSERVED="applied"
@@ -67,37 +63,50 @@ run_executor() {
   fi
 }
 
+# run_case <id> <name> <expected: applied|blocked> <authorized: true|false> <variant>
+# Variants: none, substitute, replan, other-agent, late, self, unapproved.
+run_case() {
+  local id="$1" name="$2" expected="$3" authorized="$4" variant="$5" attacker="${6:-}" before after
+  echo
+  echo "== $name"
+  fresh_dir "$id"
+  terraform plan -input=false -no-color -var "release=v1" -out="$PLAN_FILE" >/dev/null
+  echo "reviewer reads the plan: $(terraform show -no-color "$PLAN_FILE" | grep -E 'release' | head -1 | sed 's/^ *//')"
+  case "$variant" in
+    unapproved) echo "no approval recorded" ;;
+    self)       echo "$PLAN_FILE approved by alice" > approvals.txt
+                echo "approval recorded by the requester (alice)" ;;
+    *)          echo "$PLAN_FILE approved by bob" > approvals.txt
+                echo "approval recorded for: $PLAN_FILE" ;;
+  esac
+  case "$variant" in
+    substitute) terraform plan -input=false -no-color -var "release=v2-not-reviewed" -out="$PLAN_FILE" >/dev/null
+                echo "the file $PLAN_FILE now holds a different plan" ;;
+    replan)     terraform plan -input=false -no-color -var "release=v3-replanned" -out="$PLAN_FILE" >/dev/null
+                echo "a new plan was written to $PLAN_FILE after approval" ;;
+    other-agent) echo "the executor is run by a different agent; this model does not check who runs it" ;;
+    late)       echo "the approval was granted long ago; this model records no expiry" ;;
+  esac
+  before="$(release_state)"
+  run_executor
+  after="$(release_state)"
+  results_case "$id" "$name" "$expected" "$authorized" "$OBSERVED" "$before" "$after" "[]" "$attacker"
+  echo "terraform state: release $before -> $after"
+  if [ "$OBSERVED" != "$expected" ]; then
+    echo "FAIL  $name: expected $expected, observed $OBSERVED" >&2
+    failures=$((failures + 1))
+  elif [ "$authorized" = "false" ] && [ "$OBSERVED" = "applied" ]; then
+    echo "BASELINE RESULT: an unauthorized change was applied (protection not held)."
+  fi
+}
+
 echo "== Baseline: approval recorded against a file name, no digest binding"
-
-echo
-echo "== Case 1: the approved plan is applied unchanged"
-fresh_dir approved-plan
-approve_plan
-before="$(release_state)"
-run_executor
-after="$(release_state)"
-results_case approved-plan "approved plan" applied true "$OBSERVED" "$before" "$after"
-echo "terraform state: release $before -> $after"
-[ "$OBSERVED" = "applied" ] && [ "$after" = "v1" ] || { echo "FAIL  the approved plan was not applied"; failures=$((failures + 1)); }
-
-echo
-echo "== Case 2: after approval, something that can write the plan location replaces the file"
-fresh_dir substituted-plan
-approve_plan
-terraform plan -input=false -no-color -var "release=v2-not-reviewed" -out="$PLAN_FILE" >/dev/null
-echo "the file $PLAN_FILE now holds a different plan"
-before="$(release_state)"
-run_executor
-after="$(release_state)"
-# Expected in this model: the substitution is applied. That is a protection failure.
-results_case substituted-plan "substituted plan" applied false "$OBSERVED" "$before" "$after"
-echo "terraform state: release $before -> $after (approved release was: v1)"
-if [ "$after" = "v2-not-reviewed" ]; then
-  echo "BASELINE RESULT: an unapproved change was applied."
-  echo "scripts/demo_approval_binding.sh case 2 refuses the same swap."
-else
-  echo "FAIL  the swap did not reproduce; the baseline model is wrong." >&2
-  failures=$((failures + 1))
-fi
+run_case approved-plan          "approved plan"          applied true  none
+run_case substituted-plan       "substituted plan"       applied false substitute v2-not-reviewed
+run_case replan-after-approval  "re-plan after approval" applied false replan v3-replanned
+run_case different-agent        "different agent"        applied false other-agent
+run_case expired-approval       "expired approval"       applied false late
+run_case self-approval          "self-approval"          applied false self
+run_case no-approval            "no approval"            blocked false unapproved
 
 [ "$failures" -eq 0 ] || exit 1
