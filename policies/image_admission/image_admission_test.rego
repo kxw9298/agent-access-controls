@@ -93,6 +93,10 @@ test_denies_self_approval_by_agent if {
 	denied_with(with_approval({"approver": "deploy-agent"}), "approver is missing, or is the requester or the agent")
 }
 
+test_denies_self_approval_with_different_case if {
+	denied_with(with_approval({"approver": "Alice"}), "approver is missing, or is the requester or the agent")
+}
+
 test_denies_missing_approver if {
 	inp := with_field("approval", object.remove(approval, ["approver"]))
 	denied_with(inp, "approver is missing, or is the requester or the agent")

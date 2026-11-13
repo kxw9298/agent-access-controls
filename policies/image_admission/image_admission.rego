@@ -56,12 +56,15 @@ agent_matches if input.approval.agent == input.execution.agent
 
 requester_matches if input.approval.requested_by == input.execution.requested_by
 
+# Identities are compared without regard to letter case: "Alice" and "alice"
+# are one person. An identity that is not a string makes the comparison
+# undefined, which denies.
 approver_independent if {
 	nonempty_string(input.approval.approver)
-	input.approval.approver != input.approval.requested_by
-	input.approval.approver != input.approval.agent
-	input.approval.approver != input.execution.requested_by
-	input.approval.approver != input.execution.agent
+	lower(input.approval.approver) != lower(input.approval.requested_by)
+	lower(input.approval.approver) != lower(input.approval.agent)
+	lower(input.approval.approver) != lower(input.execution.requested_by)
+	lower(input.approval.approver) != lower(input.execution.agent)
 }
 
 approval_current if {
