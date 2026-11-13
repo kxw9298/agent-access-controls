@@ -27,8 +27,8 @@ Where a threat matches an item in the [OWASP Top 10 for LLM Applications 2025](h
 
 ## Open items
 
-- Log retention and tamper protection. The decision-record schema for tool-call decisions is on `main`; signed records for the change path are planned for v0.4; the log pipeline is not defined yet.
-- Deriving agent, user, and approver identity for the change path from verified tokens and CI approval records (v0.2).
+- Log retention and tamper protection. The decision-record schema for tool-call decisions is on `main`; signed records of authorized changes are planned (see the roadmap in the README); the log pipeline is not defined yet.
+- Telling an AI agent apart from other callers of the same workflow. The reference pipeline takes the agent from the workflow identity (v0.2).
 - Paths to infrastructure that bypass the pipeline (see the limits in [approval-binding.md](approval-binding.md)).
 - Threats specific to MCP server registration and tool metadata integrity.
 - Mapping to the CSA AI Controls Matrix (v1.0).

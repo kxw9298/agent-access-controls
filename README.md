@@ -2,7 +2,7 @@
 
 Open-source guardrails that control what AI agents can change in software and cloud infrastructure. They bind human approval to the exact change that is executed, within a defined enforcement boundary, and produce verifiable records of authorized changes.
 
-Version 1 covers Terraform saved-plan changes through GitHub Actions. Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the v1 guarantee.
+Version 1 covers Terraform saved-plan changes through GitHub Actions. A second interface, admission of container images by digest in a local Kubernetes cluster, is planned. Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the v1 guarantee.
 
 > **Status: pre-alpha (v0.1.0).** The control catalog and the first authorization policy are released for review. Not production-ready; interfaces will change.
 
@@ -26,7 +26,8 @@ The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-1
 | Policy-as-code: authorization policies in Rego for [Open Policy Agent](https://www.openpolicyagent.org/), with unit tests | [`policies/`](policies/) | First policy |
 | Decision-record schema for tool-call decisions | [`schemas/`](schemas/) | On `main`, not yet released |
 | Reference architecture and threat model | [`docs/`](docs/) | Draft |
-| Approval binding for agent-proposed infrastructure changes: design in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/` | Planned for v0.2 |
+| Change path: policy gate on Terraform plans, approval bound to the plan digest, workload identity from GitHub Actions OIDC, reference pipeline. Design and limits in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/`, `scripts/`, `.github/workflows/` | On `main`; the approved-apply path is not yet exercised end to end |
+| Demonstration, no-control baseline, and container runner | `scripts/`, `containers/` | On `main`; see [`docs/evaluation.md`](docs/evaluation.md) |
 | Deployment examples: Infrastructure-as-Code for an open-source gateway on Kubernetes and for a managed cloud API gateway | `deploy/` | Planned |
 
 ## Design principles
@@ -54,12 +55,22 @@ opa eval \
   "data.agentaccess.tool_authz.decision"
 ```
 
+## Try the change-path demonstration
+
+Needs Docker only. No cloud account and no network at run time.
+
+```sh
+scripts/run_in_container.sh
+```
+
+It first applies a swapped plan under an approval recorded against a file name (the baseline), then runs the same swap with the approval bound to the plan digest, and refuses it. [`docs/evaluation.md`](docs/evaluation.md) says what this does and does not show, and how to run it without Docker.
+
 ## Two enforcement paths
 
 An agent can change things in two ways, and each needs its own enforcement point:
 
 - **Tool-call path.** The agent calls a tool or API through a gateway. The policy in [`policies/tool_authz`](policies/tool_authz/) decides each call. This shipped in v0.1.
-- **Change path.** The agent proposes an infrastructure change (a Terraform plan) and a pipeline applies it. v0.2 adds controls here: a policy gate on the plan, and human approval bound to the exact plan that is applied.
+- **Change path.** The agent proposes an infrastructure change (a Terraform plan) and a pipeline applies it. The controls here are a policy gate on the plan and human approval bound to the exact plan that is applied.
 
 See [`docs/approval-binding.md`](docs/approval-binding.md) for the change-path design and its limits.
 
@@ -74,20 +85,20 @@ python scripts/validate_decision_log.py
 
 This project defines the record, not the log pipeline. A gateway writes the record to an audit log; OPA's own decision log wraps it with a decision ID and timestamp.
 
-Records of authorized *changes* on the change path are a separate item: signed attestations in v0.4.
+Records of authorized *changes* on the change path are a separate item: signed attestations, planned in v0.3.
 
 ## Roadmap
 
-| Version | Scope |
-| --- | --- |
-| v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI |
-| v0.2 | Change path, first slice: policy gate on Terraform plans; human approval bound to the saved-plan digest and to the agent and user identity; a demonstration that a substituted plan is refused |
-| v0.3 | The same approval binding at a second interface: a Kubernetes admission demonstration |
-| v0.4 | Signed records of authorized changes (in-toto, Sigstore). The decision-record schema for tool-call decisions is already on `main`. |
-| v0.5 | Test suite modeled on public incidents, run in one CI system and one local Kubernetes cluster, with published results |
-| Later | Gateway deployment examples for the tool-call path (Kubernetes, managed cloud API gateway); approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix |
+| Version | Scope | Status |
+| --- | --- | --- |
+| v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI | Released |
+| v0.2 | Change path, first slice: policy gate on Terraform plans; approval bound to the saved-plan digest and to the agent and user identity; identity from GitHub Actions OIDC; reference pipeline; demonstration and no-control baseline | On `main`; approved-apply path not yet exercised |
+| v0.3 | Second interface: container images approved by digest and admitted in a local Kubernetes cluster ([Kyverno](https://kyverno.io/)), with the approval recorded as a signed attestation ([cosign](https://docs.sigstore.dev/cosign/overview/), [in-toto](https://github.com/in-toto/attestation) format) | Planned |
+| v0.4 | Attack harness: a catalog of attacks based on public incidents, deterministic pass or fail checks, repeated trials including runs driven by an LLM agent, published results and transcripts | Planned |
+| v0.5 | Review kit and external evaluation: reproducible instructions, an evaluation template, and published reviewer findings | Planned |
+| Later | Signed records for Terraform plan approvals; gateway deployment examples for the tool-call path; approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix | Not scheduled |
 
-Not covered, and not planned for these versions: administrator break-glass access, CI systems other than GitHub Actions, and production hardening.
+Not covered, and not planned for these versions: administrator break-glass access, CI systems other than GitHub Actions, dependency and vulnerability scanning, SBOM generation, signing of artifacts other than container images, and production hardening.
 
 ## Related work
 
@@ -98,6 +109,7 @@ This project builds on existing gateways and guidance rather than replacing them
 - [Open Policy Agent](https://www.openpolicyagent.org/)
 - [Terraform saved plans](https://developer.hashicorp.com/terraform/cli/commands/plan#out-filename)
 - [in-toto attestations](https://github.com/in-toto/attestation) and [Sigstore](https://www.sigstore.dev/)
+- [Kyverno](https://kyverno.io/)
 - [agentgateway](https://agentgateway.dev/)
 - [Envoy AI Gateway](https://aigateway.envoyproxy.io/)
 

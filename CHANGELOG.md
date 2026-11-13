@@ -6,6 +6,13 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Policy gate for agent-proposed Terraform plans (`policies/terraform_plan`).
+- Approval binding for Terraform saved plans (`policies/change_approval`): approval tied to the plan's SHA-256 digest, the agent, the requesting user, an expiry, and an approver who differs from the requester.
+- Workload identity from GitHub Actions OIDC tokens (`policies/workload_identity`).
+- Reference GitHub Actions pipeline (`.github/workflows/change-pipeline.yml`) and its helper scripts.
+- `scripts/demo_approval_binding.sh`, a six-case demonstration, and `scripts/demo_baseline_no_binding.sh`, the same swap with the control removed.
+- `scripts/run_in_container.sh` and `containers/demo/Dockerfile` to run both without installing Terraform or OPA. CI runs the container with networking disabled, and runs the scripts on Linux and macOS.
+- `docs/evaluation.md`: what the demonstrations show and do not show.
 - Design for approval binding on agent-proposed infrastructure changes (`docs/approval-binding.md`).
 - Planned controls AAC-CH-01 to AAC-CH-04 and AAC-AU-02 in the catalog, and threats T9 to T12 in the threat model.
 - Decision-record schema (`schemas/decision-record.schema.json`) for control AAC-AU-01 on the tool-call path, with valid and invalid examples in `examples/audit/`.
@@ -15,7 +22,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
-- Roadmap: v0.2 to v0.5 now cover the change path (Terraform plan policy, approval bound to the plan digest, Kubernetes admission demonstration, signed records, incident-based tests). Gateway deployment examples move to a later stage.
+- Roadmap: v0.2 to v0.5 now cover the change path (Terraform plan policy and approval binding), container image admission with signed attestations, an attack harness, and an external review kit. Gateway deployment examples move to a later stage.
 - The tool-authorization policy denies tools whose metadata is incomplete (`impact` not `low` or `high`, or no `required_entitlement`) with the reason `tool metadata incomplete`. Previously such a tool skipped the approval or entitlement check.
 
 ## [0.1.0] - 2026-10-09
