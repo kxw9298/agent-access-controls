@@ -112,3 +112,30 @@ test_decision_records_denial if {
 	d.tool == "issue_refund"
 	"high-impact action requires approval" in d.reasons
 }
+
+# Tool metadata must be complete; incomplete entries fail closed.
+
+tools_missing_impact := {"erp-mcp": {"issue_refund": {"required_entitlement": "finance:refund"}}}
+
+tools_unknown_impact := {"erp-mcp": {"issue_refund": {"impact": "medium", "required_entitlement": "finance:refund"}}}
+
+tools_missing_entitlement := {"erp-mcp": {"issue_refund": {"impact": "high"}}}
+
+test_denies_tool_missing_impact if {
+	not tool_authz.allow with input as refund_with_approval with data.grants as grants with data.tools as tools_missing_impact
+	"tool metadata incomplete" in tool_authz.deny_reasons with input as refund_with_approval with data.grants as grants with data.tools as tools_missing_impact
+}
+
+test_denies_tool_unknown_impact if {
+	not tool_authz.allow with input as refund_with_approval with data.grants as grants with data.tools as tools_unknown_impact
+	"tool metadata incomplete" in tool_authz.deny_reasons with input as refund_with_approval with data.grants as grants with data.tools as tools_unknown_impact
+}
+
+test_denies_tool_missing_entitlement if {
+	not tool_authz.allow with input as refund_with_approval with data.grants as grants with data.tools as tools_missing_entitlement
+	"tool metadata incomplete" in tool_authz.deny_reasons with input as refund_with_approval with data.grants as grants with data.tools as tools_missing_entitlement
+}
+
+test_complete_metadata_not_flagged if {
+	not "tool metadata incomplete" in tool_authz.deny_reasons with input as refund_with_approval with data.grants as grants with data.tools as tools
+}

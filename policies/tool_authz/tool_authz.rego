@@ -16,6 +16,10 @@
 #   data.grants[agent_id] = [{"server": "...", "tool": "...", "actions": ["..."]}]
 #   data.tools[server][tool] = {"impact": "low" | "high",
 #                               "required_entitlement": "..."}
+#
+# Tool metadata is fail-closed: a tool whose "impact" is not "low" or "high",
+# or that has no "required_entitlement", is denied rather than treated as
+# low-impact or entitlement-free.
 package agentaccess.tool_authz
 
 default allow := false
@@ -23,6 +27,14 @@ default allow := false
 allow if count(deny_reasons) == 0
 
 tool_meta := data.tools[input.request.server][input.request.tool]
+
+valid_impacts := {"low", "high"}
+
+tool_meta_valid if {
+	tool_meta.impact in valid_impacts
+	is_string(tool_meta.required_entitlement)
+	tool_meta.required_entitlement != ""
+}
 
 tool_granted if {
 	some grant in data.grants[input.agent.id]
@@ -41,6 +53,11 @@ deny_reasons contains "agent identity not verified" if {
 
 deny_reasons contains "unknown tool" if {
 	not tool_meta
+}
+
+deny_reasons contains "tool metadata incomplete" if {
+	tool_meta
+	not tool_meta_valid
 }
 
 deny_reasons contains "tool or action not granted to agent" if {
