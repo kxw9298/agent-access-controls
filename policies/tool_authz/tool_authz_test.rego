@@ -176,6 +176,7 @@ test_decision_for_unknown_tool_has_null_impact if {
 
 test_decision_does_not_log_entitlements if {
 	d := tool_authz.decision with input as refund_with_approval with data.grants as grants with data.tools as tools
-	not d.entitlements
-	not d.input
+	keys := object.keys(d)
+	not "entitlements" in keys
+	not "input" in keys
 }
