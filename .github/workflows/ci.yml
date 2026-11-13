@@ -145,3 +145,24 @@ jobs:
         run: kubectl version
       - name: Stage 2, check the cluster enforces the published digests
         run: scripts/demo_image_admission_cluster.sh "$RUNNER_TEMP/image-admission/approved-images.yaml"
+
+  attack-harness:
+    name: Attack harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: latest
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run the attack catalog and the fuzzer
+        run: python scripts/attack_harness.py
+      - name: Publish the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attack-harness-results
+          path: results/attack-harness/
+          if-no-files-found: warn

@@ -67,12 +67,16 @@ requester_matches if input.approval.requested_by == input.execution.requested_by
 
 approver_present if nonempty_string(input.approval.approver)
 
+# Identities are compared without regard to letter case. GitHub logins and many
+# directory identities are case-insensitive, so "Alice" and "alice" are one
+# person and must not count as two. An identity that is not a string makes the
+# comparison undefined, which denies.
 approver_independent if {
 	approver_present
-	input.approval.approver != input.approval.requested_by
-	input.approval.approver != input.approval.agent
-	input.approval.approver != input.execution.requested_by
-	input.approval.approver != input.execution.agent
+	lower(input.approval.approver) != lower(input.approval.requested_by)
+	lower(input.approval.approver) != lower(input.approval.agent)
+	lower(input.approval.approver) != lower(input.execution.requested_by)
+	lower(input.approval.approver) != lower(input.execution.agent)
 }
 
 approval_current if {
