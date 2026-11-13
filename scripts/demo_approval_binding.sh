@@ -76,7 +76,11 @@ check() {
   [ "$outcome" = "allow" ]
 }
 
-release_state() { terraform output -raw release 2>/dev/null || echo none; }
+release_state() {
+  local out
+  out="$(terraform output -no-color -json)" || return 1
+  jq -r '.release.value // "none"' <<<"$out"
+}
 
 # execute <id> <name> <expected: applied|blocked> <authorized: true|false> \
 #         <plan file> <approval file or "none"> <agent> <now>
@@ -146,8 +150,8 @@ echo "== Case 6: no approval is provided"
 execute no-approval "no approval" blocked false approved.tfplan none "$AGENT" "$NOW"
 
 echo
-echo "applied release is still: $(terraform output -raw release)"
-if [ "$(terraform output -raw release)" != "v1" ]; then
+echo "applied release is still: $(release_state)"
+if [ "$(release_state)" != "v1" ]; then
   echo "FAIL  an unapproved change was applied"
   failures=$((failures + 1))
 fi

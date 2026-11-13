@@ -32,7 +32,11 @@ trap 'results_end; rm -rf "$WORK"' EXIT
 PLAN_FILE="approved.tfplan"
 failures=0
 
-release_state() { terraform output -raw release 2>/dev/null || echo none; }
+release_state() {
+  local out
+  out="$(terraform output -no-color -json)" || return 1
+  jq -r '.release.value // "none"' <<<"$out"
+}
 
 # fresh_dir <name>: a clean working copy with its own Terraform state.
 fresh_dir() {

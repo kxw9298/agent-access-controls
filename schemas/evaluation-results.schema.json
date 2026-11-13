@@ -88,8 +88,8 @@
               "additionalProperties": false,
               "required": ["release_before", "release_after"],
               "properties": {
-                "release_before": {"type": "string"},
-                "release_after": {"type": "string"}
+                "release_before": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+                "release_after": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
               }
             },
             "protection": {"enum": ["held", "not_held", "not_applicable"]}
