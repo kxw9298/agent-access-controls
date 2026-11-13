@@ -91,6 +91,8 @@ jobs:
         run: scripts/run_evaluation.sh
       - name: Check that the results can be trusted
         run: python scripts/validate_results.py results/results.json
+      - name: Check that the comparison table matches the results
+        run: python scripts/render_comparison.py results/results.json --check docs/evaluation.md
       - name: Show the results
         if: always()
         run: cat results/results.json || true
@@ -118,6 +120,8 @@ jobs:
         run: scripts/run_in_container.sh
       - name: Check that the results can be trusted
         run: python scripts/validate_results.py results/results.json
+      - name: Check that the comparison table matches the results
+        run: python scripts/render_comparison.py results/results.json --check docs/evaluation.md
       - name: Publish the results
         if: always()
         uses: actions/upload-artifact@v4

@@ -15,8 +15,12 @@ POLICY_DATA="$ROOT/examples/terraform_pipeline/policy-data.json"
 require_tools terraform opa jq
 
 WORK="$(mktemp -d)"
-results_begin approval-binding approved-plan substituted-plan different-agent \
-  expired-approval self-approval no-approval
+results_begin approval-binding implementation approved-plan substituted-plan \
+  replan-after-approval different-agent expired-approval self-approval no-approval
+results_assume "The approval record, including the plan digest it names, is written by a trusted step and cannot be altered by the attacker."
+results_assume "The executor that runs this check is the only path to apply a plan."
+results_assume "The agent and requester identities given to the check come from a trusted source. The demonstration script supplies them itself; the reference pipeline takes them from verified GitHub Actions tokens."
+results_assume "Local demonstration: it is not the hosted GitHub environment approval path, which has not been exercised end to end."
 trap 'results_end; rm -rf "$WORK"' EXIT
 cp "$ROOT/examples/terraform_pipeline/main.tf" "$WORK/"
 cd "$WORK"
@@ -83,11 +87,11 @@ release_state() {
 }
 
 # execute <id> <name> <expected: applied|blocked> <authorized: true|false> \
-#         <plan file> <approval file or "none"> <agent> <now>
+#         <plan file> <approval file or "none"> <agent> <now> [attacker release]
 # Acts as the executor: applies the plan only if the check allows it, then
 # records what actually happened to the Terraform state.
 execute() {
-  local id="$1" name="$2" expected="$3" authorized="$4" plan="$5" approval="$6" agent="$7" now="$8"
+  local id="$1" name="$2" expected="$3" authorized="$4" plan="$5" approval="$6" agent="$7" now="$8" attacker="${9:-}"
   local policy_expectation="refuse" before after observed
   [ "$expected" = "applied" ] && policy_expectation="allow"
   before="$(release_state)"
@@ -98,7 +102,7 @@ execute() {
     observed="blocked"
   fi
   after="$(release_state)"
-  results_case "$id" "$name" "$expected" "$authorized" "$observed" "$before" "$after" "$LAST_REASONS"
+  results_case "$id" "$name" "$expected" "$authorized" "$observed" "$before" "$after" "$LAST_REASONS" "$attacker"
   echo "        terraform state: release $before -> $after"
   if [ "$authorized" = "false" ] && [ "$observed" = "applied" ]; then
     echo "        the executor applied a plan nobody approved"
@@ -131,22 +135,28 @@ echo
 echo "== Case 2: a different plan is made after approval and reuses the approval"
 terraform plan -input=false -no-color -var "release=v2-not-reviewed" -out=substituted.tfplan >/dev/null
 echo "substituted plan digest: $(digest substituted.tfplan)"
-execute substituted-plan "substituted plan" blocked false substituted.tfplan approval.json "$AGENT" "$NOW"
+execute substituted-plan "substituted plan" blocked false substituted.tfplan approval.json "$AGENT" "$NOW" v2-not-reviewed
 
 echo
-echo "== Case 3: the approved plan is executed by a different agent"
+echo "== Case 3: a new plan is made after approval and reuses the approval"
+terraform plan -input=false -no-color -var "release=v3-replanned" -out=replanned.tfplan >/dev/null
+echo "re-planned plan digest: $(digest replanned.tfplan)"
+execute replan-after-approval "re-plan after approval" blocked false replanned.tfplan approval.json "$AGENT" "$NOW" v3-replanned
+
+echo
+echo "== Case 4: the approved plan is executed by a different agent"
 execute different-agent "different agent" blocked false approved.tfplan approval.json "other-agent" "$NOW"
 
 echo
-echo "== Case 4: the approval has expired"
+echo "== Case 5: the approval has expired"
 execute expired-approval "expired approval" blocked false approved.tfplan approval-expired.json "$AGENT" "$NOW"
 
 echo
-echo "== Case 5: the requester approved their own change"
+echo "== Case 6: the requester approved their own change"
 execute self-approval "self-approval" blocked false approved.tfplan approval-self.json "$AGENT" "$NOW"
 
 echo
-echo "== Case 6: no approval is provided"
+echo "== Case 7: no approval is provided"
 execute no-approval "no approval" blocked false approved.tfplan none "$AGENT" "$NOW"
 
 echo

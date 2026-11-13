@@ -6,6 +6,9 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Hardened-baseline model (`scripts/demo_hardened_baseline.sh`): a saved plan per run that cannot be overwritten, run-keyed approval with self-review prevented, apply only from the apply job, and a new approval for a new run. Labeled as a model; it does not test any product.
+- A shared scenario list (`evaluation/scenarios.json`) of seven scenarios, including re-planning after approval, run against the no-binding baseline, the hardened baseline and approval binding. A configuration with no mechanism for a scenario reports it as `unsupported`, separate from a pass or a failure.
+- `results.json` schema 1.1.0: configuration kind, trust assumptions, `unsupported` status, and the release an attack tried to land. `scripts/render_comparison.py` renders the comparison table in `docs/evaluation.md` from the results, and CI checks that it matches.
 - `results.json` output: `scripts/run_evaluation.sh` runs the baseline and the demonstration and records, for each case, the expected and observed outcome, denial reasons, and the Terraform state before and after. Matching expectations and holding protection are separate fields, and a case that did not run is reported as `not_executed`. Schema in `schemas/evaluation-results.schema.json`, checked by `scripts/validate_results.py`. CI publishes the file as a build artifact.
 - `docs/REVIEWER_QUICKSTART.md` and `docs/EXTERNAL_REVIEW_TEMPLATE.md` for people who want to run and review the demonstrations.
 
@@ -24,7 +27,7 @@ The change path, first slice: Terraform saved-plan changes through GitHub Action
 - Approval binding for Terraform saved plans (`policies/change_approval`): approval tied to the plan's SHA-256 digest, the agent, the requesting user, an expiry, and an approver who differs from the requester.
 - Workload identity from GitHub Actions OIDC tokens (`policies/workload_identity`).
 - Reference GitHub Actions pipeline (`.github/workflows/change-pipeline.yml`) and its helper scripts.
-- `scripts/demo_approval_binding.sh`, a six-case demonstration, and `scripts/demo_baseline_no_binding.sh`, the same swap with the control removed.
+- `scripts/demo_approval_binding.sh`, a demonstration of approval binding, and `scripts/demo_baseline_no_binding.sh`, the same scenarios with the control removed.
 - `scripts/run_in_container.sh` and `containers/demo/Dockerfile` to run both without installing Terraform or OPA. CI runs the container with networking disabled, and runs the scripts on Linux and macOS.
 - `docs/evaluation.md`: what the demonstrations show and do not show.
 - Design for approval binding on agent-proposed infrastructure changes (`docs/approval-binding.md`).
