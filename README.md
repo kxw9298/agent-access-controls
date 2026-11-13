@@ -1,6 +1,8 @@
 # agent-access-controls
 
-Executable security controls for governing what AI agents can access and change: enterprise tools, MCP servers, APIs, data, and cloud infrastructure.
+Open-source guardrails that control what AI agents can change in software and cloud infrastructure. They bind human approval to the exact change that is executed, within a defined enforcement boundary, and produce verifiable records of authorized changes.
+
+Version 1 covers Terraform saved-plan changes through GitHub Actions. Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the v1 guarantee.
 
 > **Status: pre-alpha (v0.1.0).** The control catalog and the first authorization policy are released for review. Not production-ready; interfaces will change.
 
@@ -22,6 +24,7 @@ The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-1
 | --- | --- | --- |
 | Control catalog: objective, enforcement point, and risks addressed for each control | [`controls/`](controls/) | In progress |
 | Policy-as-code: authorization policies in Rego for [Open Policy Agent](https://www.openpolicyagent.org/), with unit tests | [`policies/`](policies/) | First policy |
+| Decision-record schema for tool-call decisions | [`schemas/`](schemas/) | On `main`, not yet released |
 | Reference architecture and threat model | [`docs/`](docs/) | Draft |
 | Approval binding for agent-proposed infrastructure changes: design in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/` | Planned for v0.2 |
 | Deployment examples: Infrastructure-as-Code for an open-source gateway on Kubernetes and for a managed cloud API gateway | `deploy/` | Planned |
@@ -60,6 +63,19 @@ An agent can change things in two ways, and each needs its own enforcement point
 
 See [`docs/approval-binding.md`](docs/approval-binding.md) for the change-path design and its limits.
 
+## Decision records (tool-call path)
+
+Every tool-call authorization decision produces a record that follows [`schemas/decision-record.schema.json`](schemas/decision-record.schema.json): outcome, denial reasons, agent, user, tool, action, request ID, impact, and approval. It does not include the user's entitlements or request payload. Examples are in [`examples/audit/`](examples/audit/).
+
+```sh
+pip install jsonschema
+python scripts/validate_decision_log.py
+```
+
+This project defines the record, not the log pipeline. A gateway writes the record to an audit log; OPA's own decision log wraps it with a decision ID and timestamp.
+
+Records of authorized *changes* on the change path are a separate item: signed attestations in v0.4.
+
 ## Roadmap
 
 | Version | Scope |
@@ -67,7 +83,7 @@ See [`docs/approval-binding.md`](docs/approval-binding.md) for the change-path d
 | v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI |
 | v0.2 | Change path, first slice: policy gate on Terraform plans; human approval bound to the saved-plan digest and to the agent and user identity; a demonstration that a substituted plan is refused |
 | v0.3 | The same approval binding at a second interface: a Kubernetes admission demonstration |
-| v0.4 | Signed records of authorized changes (in-toto, Sigstore); decision-record schema |
+| v0.4 | Signed records of authorized changes (in-toto, Sigstore). The decision-record schema for tool-call decisions is already on `main`. |
 | v0.5 | Test suite modeled on public incidents, run in one CI system and one local Kubernetes cluster, with published results |
 | Later | Gateway deployment examples for the tool-call path (Kubernetes, managed cloud API gateway); approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix |
 

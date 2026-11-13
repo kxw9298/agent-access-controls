@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.2.0",
+  "allow": true,
+  "reasons": ["unknown tool"],
+  "agent": "invoice-assistant",
+  "user": "u-1001",
+  "server": "erp-mcp",
+  "tool": "get_invoice",
+  "action": "read",
+  "request_id": null,
+  "impact": "low",
+  "approval_granted": false,
+  "approver": null
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.2.0",
+  "allow": false,
+  "reasons": ["high-impact action requires approval"],
+  "agent": "invoice-assistant",
+  "user": "u-3003",
+  "server": "erp-mcp",
+  "tool": "issue_refund",
+  "action": "write",
+  "request_id": "req-7f3c",
+  "impact": "high",
+  "approval_granted": false,
+  "approver": null
+}

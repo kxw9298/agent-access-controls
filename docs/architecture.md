@@ -52,6 +52,29 @@ Grants and tool metadata are supplied as policy data. See [`examples/tool_authz/
 
 The flow above covers calls an agent makes through a gateway. Infrastructure changes an agent proposes through a pipeline are enforced at a different point, the executor that applies the change. See [approval-binding.md](approval-binding.md).
 
+## Decision record (tool-call path)
+
+For each query the policy returns a decision record, defined by [`schemas/decision-record.schema.json`](../schemas/decision-record.schema.json). The gateway writes it to the audit log (AAC-AU-01).
+
+```json
+{
+  "schema_version": "0.2.0",
+  "allow": false,
+  "reasons": ["high-impact action requires approval"],
+  "agent": "invoice-assistant",
+  "user": "u-3003",
+  "server": "erp-mcp",
+  "tool": "issue_refund",
+  "action": "write",
+  "request_id": "req-7f3c",
+  "impact": "high",
+  "approval_granted": false,
+  "approver": null
+}
+```
+
+The record names the identities and the outcome. It leaves out the user's entitlements and the request payload, so the audit log does not become a second copy of sensitive data. Retention and tamper protection belong to the log pipeline and are not defined here yet.
+
 ## Deployment targets (planned)
 
 - An open-source gateway on Kubernetes, with workload identity and network policies.
