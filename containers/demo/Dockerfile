@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # Runs the approval-binding demonstration and its no-control baseline in a
-# container, so a reviewer needs only Docker. The demo needs no network and no
+# container and writes results.json to /results, so a reviewer needs only Docker. The demo needs no network and no
 # cloud account; the container is run with --network none to show that.
 #
 # Build from the repository root:
@@ -19,11 +19,16 @@ RUN apt-get update \
 COPY --from=opa /opa /usr/local/bin/opa
 COPY --from=terraform /bin/terraform /usr/local/bin/terraform
 
+# Recorded in results.json as the tested commit. Pass it at build time:
+#   --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)
+ARG SOURCE_COMMIT=unknown
+ENV SOURCE_COMMIT=${SOURCE_COMMIT} RESULTS_DIR=/results
+
 WORKDIR /repo
 COPY policies policies
 COPY examples examples
 COPY scripts scripts
-RUN useradd --create-home demo && chown -R demo /repo
+RUN useradd --create-home demo && mkdir /results && chown -R demo /repo /results
 USER demo
 
-CMD ["bash", "-c", "scripts/demo_baseline_no_binding.sh && echo && scripts/demo_approval_binding.sh"]
+CMD ["scripts/run_evaluation.sh"]

@@ -10,10 +10,14 @@ POLICY_DATA="$ROOT/examples/terraform_pipeline/policy-data.json"
 
 # shellcheck source=scripts/lib/portable.sh
 . "$ROOT/scripts/lib/portable.sh"
+# shellcheck source=scripts/lib/results.sh
+. "$ROOT/scripts/lib/results.sh"
 require_tools terraform opa jq
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+results_begin approval-binding approved-plan substituted-plan different-agent \
+  expired-approval self-approval no-approval
+trap 'results_end; rm -rf "$WORK"' EXIT
 cp "$ROOT/examples/terraform_pipeline/main.tf" "$WORK/"
 cd "$WORK"
 
@@ -52,7 +56,13 @@ check() {
   fi
 
   decision="$(opa eval -f raw -d "$APPROVAL_POLICY" -i "$input" "data.agentaccess.change_approval.decision")"
-  allowed="$(jq -r '.allow' <<<"$decision")"
+  allowed="$(jq -r '.allow' <<<"$decision" 2>/dev/null || true)"
+  # An error here must stop the run: inside an if-condition, set -e is off,
+  # and an empty or malformed decision would otherwise read as a refusal.
+  if [ "$allowed" != "true" ] && [ "$allowed" != "false" ]; then
+    echo "runner error: no usable decision for case '$name'" >&2
+    exit 3
+  fi
   if [ "$allowed" = "true" ]; then outcome="allow"; else outcome="refuse"; fi
 
   if [ "$outcome" = "$expected" ]; then
@@ -62,7 +72,37 @@ check() {
     failures=$((failures + 1))
   fi
   jq -r '.reasons[] | "        - " + .' <<<"$decision"
+  LAST_REASONS="$(jq -c '.reasons' <<<"$decision")"
   [ "$outcome" = "allow" ]
+}
+
+release_state() {
+  local out
+  out="$(terraform output -no-color -json)" || return 1
+  jq -r '.release.value // "none"' <<<"$out"
+}
+
+# execute <id> <name> <expected: applied|blocked> <authorized: true|false> \
+#         <plan file> <approval file or "none"> <agent> <now>
+# Acts as the executor: applies the plan only if the check allows it, then
+# records what actually happened to the Terraform state.
+execute() {
+  local id="$1" name="$2" expected="$3" authorized="$4" plan="$5" approval="$6" agent="$7" now="$8"
+  local policy_expectation="refuse" before after observed
+  [ "$expected" = "applied" ] && policy_expectation="allow"
+  before="$(release_state)"
+  if check "$name" "$policy_expectation" "$plan" "$approval" "$agent" "$now"; then
+    terraform apply -input=false -no-color "$plan" >/dev/null
+    observed="applied"
+  else
+    observed="blocked"
+  fi
+  after="$(release_state)"
+  results_case "$id" "$name" "$expected" "$authorized" "$observed" "$before" "$after" "$LAST_REASONS"
+  echo "        terraform state: release $before -> $after"
+  if [ "$authorized" = "false" ] && [ "$observed" = "applied" ]; then
+    echo "        the executor applied a plan nobody approved"
+  fi
 }
 
 echo "== Plan, and record an approval for the plan digest"
@@ -84,38 +124,34 @@ approval_record "$REQUESTER" "$(iso_utc_offset 3600)" > approval-self.json
 
 echo
 echo "== Case 1: apply the approved plan"
-if check "approved plan" allow approved.tfplan approval.json "$AGENT" "$NOW"; then
-  terraform apply -input=false -no-color approved.tfplan >/dev/null
-  echo "        applied: release=$(terraform output -raw release)"
-fi
+execute approved-plan "approved plan" applied true approved.tfplan approval.json "$AGENT" "$NOW"
+echo "        applied: release=$(release_state)"
 
 echo
 echo "== Case 2: a different plan is made after approval and reuses the approval"
 terraform plan -input=false -no-color -var "release=v2-not-reviewed" -out=substituted.tfplan >/dev/null
 echo "substituted plan digest: $(digest substituted.tfplan)"
-if check "substituted plan" refuse substituted.tfplan approval.json "$AGENT" "$NOW"; then
-  echo "        the executor would have applied a plan nobody approved"
-fi
+execute substituted-plan "substituted plan" blocked false substituted.tfplan approval.json "$AGENT" "$NOW"
 
 echo
 echo "== Case 3: the approved plan is executed by a different agent"
-check "different agent" refuse approved.tfplan approval.json "other-agent" "$NOW" || true
+execute different-agent "different agent" blocked false approved.tfplan approval.json "other-agent" "$NOW"
 
 echo
 echo "== Case 4: the approval has expired"
-check "expired approval" refuse approved.tfplan approval-expired.json "$AGENT" "$NOW" || true
+execute expired-approval "expired approval" blocked false approved.tfplan approval-expired.json "$AGENT" "$NOW"
 
 echo
 echo "== Case 5: the requester approved their own change"
-check "self-approval" refuse approved.tfplan approval-self.json "$AGENT" "$NOW" || true
+execute self-approval "self-approval" blocked false approved.tfplan approval-self.json "$AGENT" "$NOW"
 
 echo
 echo "== Case 6: no approval is provided"
-check "no approval" refuse approved.tfplan none "$AGENT" "$NOW" || true
+execute no-approval "no approval" blocked false approved.tfplan none "$AGENT" "$NOW"
 
 echo
-echo "applied release is still: $(terraform output -raw release)"
-if [ "$(terraform output -raw release)" != "v1" ]; then
+echo "applied release is still: $(release_state)"
+if [ "$(release_state)" != "v1" ]; then
   echo "FAIL  an unapproved change was applied"
   failures=$((failures + 1))
 fi

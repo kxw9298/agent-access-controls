@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- `results.json` output: `scripts/run_evaluation.sh` runs the baseline and the demonstration and records, for each case, the expected and observed outcome, denial reasons, and the Terraform state before and after. Matching expectations and holding protection are separate fields, and a case that did not run is reported as `not_executed`. Schema in `schemas/evaluation-results.schema.json`, checked by `scripts/validate_results.py`. CI publishes the file as a build artifact.
+- `docs/REVIEWER_QUICKSTART.md` and `docs/EXTERNAL_REVIEW_TEMPLATE.md` for people who want to run and review the demonstrations.
+
+### Changed
+
+- The demonstration now acts as the executor: it applies a plan only when the check allows it and records the resulting state, so a refusal is confirmed by the state and not only by the policy decision.
+- `scripts/run_in_container.sh` copies the results out of the container and records the tested commit.
+
 ## [0.2.0]
 
 The change path, first slice: Terraform saved-plan changes through GitHub Actions. Pre-alpha; not production-ready. The path in which a second reviewer approves a run and the apply job proceeds has not yet been exercised end to end. See `docs/evaluation.md` for what the demonstrations do and do not show.

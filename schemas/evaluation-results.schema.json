@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kxw9298/agent-access-controls/schemas/evaluation-results.schema.json",
+  "title": "Evaluation results",
+  "description": "Per-case results of the change-path demonstrations. A case that matched its expectation is not necessarily a case where protection held: see 'protection'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_commit", "tool_versions", "configurations", "verdict"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "source_commit": {"type": "string", "minLength": 1},
+    "tool_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terraform", "opa", "jq"],
+      "properties": {
+        "terraform": {"type": "string", "minLength": 1},
+        "opa": {"type": "string", "minLength": 1},
+        "jq": {"type": "string", "minLength": 1}
+      }
+    },
+    "configurations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/configuration"}
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all_configurations_present", "all_cases_executed", "all_matched_expectation", "protection_not_held_cases"],
+      "properties": {
+        "all_configurations_present": {"type": "boolean"},
+        "all_cases_executed": {"type": "boolean"},
+        "all_matched_expectation": {"type": "boolean"},
+        "protection_not_held_cases": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configuration", "cases", "summary"],
+      "properties": {
+        "configuration": {"enum": ["no-binding-baseline", "approval-binding"]},
+        "cases": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planned", "executed", "not_executed", "matched_expectation", "protection_held", "protection_not_held"],
+          "properties": {
+            "planned": {"type": "integer", "minimum": 0},
+            "executed": {"type": "integer", "minimum": 0},
+            "not_executed": {"type": "integer", "minimum": 0},
+            "matched_expectation": {"type": "integer", "minimum": 0},
+            "protection_held": {"type": "integer", "minimum": 0},
+            "protection_not_held": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "case": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "status"],
+          "properties": {
+            "id": {"type": "string"},
+            "status": {"const": "not_executed"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "name", "status", "change_authorized", "expected_outcome", "observed_outcome", "matched_expectation", "denial_reasons", "terraform_state", "protection"],
+          "properties": {
+            "id": {"type": "string"},
+            "name": {"type": "string"},
+            "status": {"const": "executed"},
+            "change_authorized": {"type": "boolean", "description": "True when applying in this case is a change the approval covers."},
+            "expected_outcome": {"enum": ["applied", "blocked"]},
+            "observed_outcome": {"enum": ["applied", "blocked"]},
+            "matched_expectation": {"type": "boolean"},
+            "denial_reasons": {"type": "array", "items": {"type": "string"}},
+            "terraform_state": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["release_before", "release_after"],
+              "properties": {
+                "release_before": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+                "release_after": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"}
+              }
+            },
+            "protection": {"enum": ["held", "not_held", "not_applicable"]}
+          }
+        }
+      ]
+    }
+  }
+}
