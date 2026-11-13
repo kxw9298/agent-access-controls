@@ -62,3 +62,17 @@ jobs:
               > "$RUNNER_TEMP/decisions/$(basename "$input")"
           done
           python scripts/validate_decision_log.py "$RUNNER_TEMP"/decisions/*.json
+
+  approval-binding-demo:
+    name: Approval-binding demonstration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: latest
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: Run the demonstration
+        run: scripts/demo_approval_binding.sh
