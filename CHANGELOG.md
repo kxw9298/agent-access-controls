@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.0]
+
+The change path, first slice: Terraform saved-plan changes through GitHub Actions. Pre-alpha; not production-ready. The path in which a second reviewer approves a run and the apply job proceeds has not yet been exercised end to end. See `docs/evaluation.md` for what the demonstrations do and do not show.
+
 ### Added
 
 - Policy gate for agent-proposed Terraform plans (`policies/terraform_plan`).
@@ -38,5 +42,6 @@ All notable changes to this project are documented here.
 
 - CI uses current major versions of the checkout, Python, and OPA setup actions.
 
-[Unreleased]: https://github.com/kxw9298/agent-access-controls/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kxw9298/agent-access-controls/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kxw9298/agent-access-controls/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kxw9298/agent-access-controls/releases/tag/v0.1.0

@@ -2,9 +2,9 @@
 
 Open-source guardrails that control what AI agents can change in software and cloud infrastructure. They bind human approval to the exact change that is executed, within a defined enforcement boundary, and produce verifiable records of authorized changes.
 
-Version 1 covers Terraform saved-plan changes through GitHub Actions. A second interface, admission of container images by digest in a local Kubernetes cluster, is planned. Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the v1 guarantee.
+The scope is Terraform saved-plan changes through GitHub Actions. A second interface, admission of container images by digest in a local Kubernetes cluster, is planned (v0.3). Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the change-path guarantee.
 
-> **Status: pre-alpha (v0.1.0).** The control catalog and the first authorization policy are released for review. Not production-ready; interfaces will change.
+> **Status: pre-alpha.** The latest tagged release is v0.1.0 (control catalog and the first authorization policy). `main` also contains the v0.2 change path; see the roadmap. Not production-ready; interfaces will change.
 
 ## The problem
 
@@ -85,7 +85,7 @@ python scripts/validate_decision_log.py
 
 This project defines the record, not the log pipeline. A gateway writes the record to an audit log; OPA's own decision log wraps it with a decision ID and timestamp.
 
-Records of authorized *changes* on the change path are a separate item: signed attestations, planned in v0.3.
+Records of authorized *changes* on the change path are a separate item: signed attestations, planned first for container image approvals (v0.3) and later for Terraform plan approvals.
 
 ## Roadmap
 
@@ -93,7 +93,7 @@ Records of authorized *changes* on the change path are a separate item: signed a
 | --- | --- | --- |
 | v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI | Released |
 | v0.2 | Change path, first slice: policy gate on Terraform plans; approval bound to the saved-plan digest and to the agent and user identity; identity from GitHub Actions OIDC; reference pipeline; demonstration and no-control baseline | On `main`; approved-apply path not yet exercised |
-| v0.3 | Second interface: container images approved by digest and admitted in a local Kubernetes cluster ([Kyverno](https://kyverno.io/)), with the approval recorded as a signed attestation ([cosign](https://docs.sigstore.dev/cosign/overview/), [in-toto](https://github.com/in-toto/attestation) format) | Planned |
+| v0.3 | Second interface: container images approved by digest and admitted in a local Kubernetes cluster ([Kyverno](https://kyverno.io/)), with the approval recorded as a signed attestation ([cosign](https://github.com/sigstore/cosign), [in-toto](https://github.com/in-toto/attestation) format) | Planned |
 | v0.4 | Attack harness: a catalog of attacks based on public incidents, deterministic pass or fail checks, repeated trials including runs driven by an LLM agent, published results and transcripts | Planned |
 | v0.5 | Review kit and external evaluation: reproducible instructions, an evaluation template, and published reviewer findings | Planned |
 | Later | Signed records for Terraform plan approvals; gateway deployment examples for the tool-call path; approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix | Not scheduled |
