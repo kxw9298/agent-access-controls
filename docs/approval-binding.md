@@ -1,6 +1,6 @@
-# Approval binding for agent-proposed infrastructure changes (design, v0.2)
+# Approval binding for agent-proposed infrastructure changes (v0.2)
 
-**Status:** design. Nothing described here is implemented until the v0.2 pull requests merge.
+**Status:** implemented for Terraform saved plans on GitHub Actions, as a demonstration and a reference pipeline. The path in which a second reviewer approves a run and the apply job proceeds has not yet been exercised end to end. Not production-ready.
 
 ## The problem
 
@@ -65,10 +65,10 @@ These are outside the v0.2 guarantee:
 - **Direct tool calls.** Changes made through an MCP server or CLI rather than the pipeline are a later stage.
 - **Administrators.** A repository or cloud administrator can change the workflow or bypass it.
 - **Correctness.** A matching digest shows the applied plan is the approved plan. It does not show the plan is safe or that the reviewer understood it.
-- **Identity source.** In the first demonstration, the agent, user, and approver values are supplied to the policy as inputs. Deriving them from verified workload-identity tokens and from the CI system's own approval records is tracked for v0.2 but lands separately.
+- **Identity source.** In the demonstration script, the agent, user, and approver values are written by the script. In the reference pipeline they come from the verified GitHub Actions OIDC token and GitHub's review history (see [`examples/terraform_pipeline`](../examples/terraform_pipeline/README.md)). The pipeline's "agent" is the workflow that runs; it does not distinguish an AI agent from any other caller of that workflow.
 - **Other CI systems and production use.**
 
-## How it will be demonstrated
+## How it is demonstrated
 
 A script run in CI against a small Terraform configuration that needs no cloud account:
 
@@ -77,3 +77,6 @@ A script run in CI against a small Terraform configuration that needs no cloud a
 3. Same plan, different agent: refused.
 4. Same plan, expired approval: refused.
 5. Same plan, approver is the requester: refused.
+6. Same plan, no approval: refused.
+
+[`scripts/demo_baseline_no_binding.sh`](../scripts/demo_baseline_no_binding.sh) runs the case 2 swap with the control removed, to show what the control changes. What the baseline models, and what it does not, is in [evaluation.md](evaluation.md).
