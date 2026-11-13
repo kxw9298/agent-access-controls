@@ -10,6 +10,7 @@ For anything beyond a small fix, open an issue first to describe the problem and
 
 - **Policies:** every change to a policy in `policies/` needs a unit test. Run `opa test policies/ -v` (OPA v1.x) before opening a pull request.
 - **Control catalog:** add or change controls in `controls/catalog.yaml`, then run `python scripts/validate_catalog.py`.
+- **Decision record:** if you add or change a denial reason or a field in the policy's `decision` output, update `schemas/decision-record.schema.json` and run `python scripts/validate_decision_log.py`.
 - **Docs:** keep the threat model and architecture in step with the catalog.
 
 ## Pull requests

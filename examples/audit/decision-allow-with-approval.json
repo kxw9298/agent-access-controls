@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.2.0",
+  "allow": true,
+  "reasons": [],
+  "agent": "invoice-assistant",
+  "user": "u-3003",
+  "server": "erp-mcp",
+  "tool": "issue_refund",
+  "action": "write",
+  "request_id": "req-7f3b",
+  "impact": "high",
+  "approval_granted": true,
+  "approver": "u-4004"
+}

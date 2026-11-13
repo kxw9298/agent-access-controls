@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.2.0",
+  "allow": false,
+  "reasons": ["tool or action not granted to agent", "unknown tool"],
+  "agent": "invoice-assistant",
+  "user": "u-1001",
+  "server": "crm-mcp",
+  "tool": "export_all_contacts",
+  "action": "read",
+  "request_id": null,
+  "impact": null,
+  "approval_granted": false,
+  "approver": null
+}
