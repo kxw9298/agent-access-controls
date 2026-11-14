@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0]
+
+The change path, with first slices of the image path and the attack harness. Pre-alpha; not production-ready.
+
+Not yet covered: the path in which a second reviewer approves a run on real GitHub and the apply job proceeds has not been exercised end to end (see `docs/evaluation.md`); container image signing and attestation are not implemented (`docs/image-admission.md`); attacks driven by an LLM are stored and replayed, not run in CI (`docs/attack-harness.md`).
+
 ### Added
 
 - Image path, first slice: `policies/image_admission` decides whether an approval covers an exact image digest (pinned reference, agent, requester, independent approver, expiry); `examples/image_admission` is a built-in Kubernetes `ValidatingAdmissionPolicy` that refuses pods whose images are not pinned to a published digest. Seven policy scenarios and six cluster scenarios run in CI on a kind cluster. Signing and attestation are not implemented. See `docs/image-admission.md`.
@@ -13,23 +21,6 @@ All notable changes to this project are documented here.
 - `results.json` schema 1.1.0: configuration kind, trust assumptions, `unsupported` status, and the release an attack tried to land. `scripts/render_comparison.py` renders the comparison table in `docs/evaluation.md` from the results, and CI checks that it matches.
 - `results.json` output: `scripts/run_evaluation.sh` runs the baseline and the demonstration and records, for each case, the expected and observed outcome, denial reasons, and the Terraform state before and after. Matching expectations and holding protection are separate fields, and a case that did not run is reported as `not_executed`. Schema in `schemas/evaluation-results.schema.json`, checked by `scripts/validate_results.py`. CI publishes the file as a build artifact.
 - `docs/REVIEWER_QUICKSTART.md` and `docs/EXTERNAL_REVIEW_TEMPLATE.md` for people who want to run and review the demonstrations.
-
-### Fixed
-
-- Both approval policies accepted a blank approver, and approvers that were the requester or agent written another way (whitespace padding, invisible characters, look-alike letters, e-mail style). The approver must now look like a GitHub login (letters, digits, `.`, `_`, `-`, optional `[bot]`); anything else is refused. Found by LLM attackers; see `evaluation/attack-runs/run-1`.
-- The approval policy compared the approver with the requester and agent case-sensitively, so an approver recorded as `Alice` for a change requested by `alice` passed the self-approval check. Identities are now compared without regard to case. Found by the attack harness.
-
-### Changed
-
-- The demonstration now acts as the executor: it applies a plan only when the check allows it and records the resulting state, so a refusal is confirmed by the state and not only by the policy decision.
-- `scripts/run_in_container.sh` copies the results out of the container and records the tested commit.
-
-## [0.2.0]
-
-The change path, first slice: Terraform saved-plan changes through GitHub Actions. Pre-alpha; not production-ready. The path in which a second reviewer approves a run and the apply job proceeds has not yet been exercised end to end. See `docs/evaluation.md` for what the demonstrations do and do not show.
-
-### Added
-
 - Policy gate for agent-proposed Terraform plans (`policies/terraform_plan`).
 - Approval binding for Terraform saved plans (`policies/change_approval`): approval tied to the plan's SHA-256 digest, the agent, the requesting user, an expiry, and an approver who differs from the requester.
 - Workload identity from GitHub Actions OIDC tokens (`policies/workload_identity`).
@@ -44,8 +35,15 @@ The change path, first slice: Terraform saved-plan changes through GitHub Action
 - Decision records now include `schema_version`, `request_id`, `impact`, `approval_granted`, and `approver`.
 - Example input for an approved high-impact request.
 
+### Fixed
+
+- Both approval policies accepted a blank approver, and approvers that were the requester or agent written another way (whitespace padding, invisible characters, look-alike letters, e-mail style). The approver must now look like a GitHub login (letters, digits, `.`, `_`, `-`, optional `[bot]`); anything else is refused. Found by LLM attackers; see `evaluation/attack-runs/run-1`.
+- The approval policy compared the approver with the requester and agent case-sensitively, so an approver recorded as `Alice` for a change requested by `alice` passed the self-approval check. Identities are now compared without regard to case. Found by the attack harness.
+
 ### Changed
 
+- The demonstration now acts as the executor: it applies a plan only when the check allows it and records the resulting state, so a refusal is confirmed by the state and not only by the policy decision.
+- `scripts/run_in_container.sh` copies the results out of the container and records the tested commit.
 - Roadmap: v0.2 to v0.5 now cover the change path (Terraform plan policy and approval binding), container image admission with signed attestations, an attack harness, and an external review kit. Gateway deployment examples move to a later stage.
 - The tool-authorization policy denies tools whose metadata is incomplete (`impact` not `low` or `high`, or no `required_entitlement`) with the reason `tool metadata incomplete`. Previously such a tool skipped the approval or entitlement check.
 
