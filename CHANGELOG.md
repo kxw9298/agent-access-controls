@@ -16,6 +16,7 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Both approval policies accepted a blank approver, and approvers that were the requester or agent written another way (whitespace padding, invisible characters, look-alike letters, e-mail style). The approver must now look like a GitHub login (letters, digits, `.`, `_`, `-`, optional `[bot]`); anything else is refused. Found by LLM attackers; see `evaluation/attack-runs/run-1`.
 - The approval policy compared the approver with the requester and agent case-sensitively, so an approver recorded as `Alice` for a change requested by `alice` passed the self-approval check. Identities are now compared without regard to case. Found by the attack harness.
 
 ### Changed

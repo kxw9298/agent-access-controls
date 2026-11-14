@@ -56,6 +56,15 @@ agent_matches if input.approval.agent == input.execution.agent
 
 requester_matches if input.approval.requested_by == input.execution.requested_by
 
+# The approver must look like a GitHub login: letters, digits, ".", "_" and "-",
+# with an optional "[bot]" suffix. This refuses blank, whitespace-padded,
+# invisible-character, look-alike and e-mail-style approver identities. A
+# person whose login is not in that form is refused, not guessed at. Aliases of
+# one person across different identity systems (for example "alice" and
+# "alice@corp.com") are NOT resolved here; the source of identities must give
+# one canonical form.
+approver_form_ok if regex.match(`^[A-Za-z0-9][A-Za-z0-9._-]*(\[bot\])?$`, input.approval.approver)
+
 # Identities are compared without regard to letter case: "Alice" and "alice"
 # are one person. An identity that is not a string makes the comparison
 # undefined, which denies.
@@ -100,6 +109,11 @@ deny_reasons contains "requesting user is not the user named in the approval" if
 deny_reasons contains "approver is missing, or is the requester or the agent" if {
 	approval_present
 	not approver_independent
+}
+
+deny_reasons contains "approver identity is not in the accepted form" if {
+	approval_present
+	not approver_form_ok
 }
 
 deny_reasons contains "approval has expired or has no valid expiry" if {

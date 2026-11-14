@@ -32,6 +32,7 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,21 +59,41 @@ def nonempty_str(v):
     return isinstance(v, str) and v != ""
 
 
-_RFC3339 = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})")
+_RFC3339 = re.compile(
+    r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:[.,](\d+))?(Z|[+-]\d{2}:\d{2})"
+)
+_EPOCH = dt.datetime(1970, 1, 1)
 
 
 def parse_time(v):
+    """RFC 3339 time as integer nanoseconds since the epoch, or None.
+
+    Matches what the policy engine accepts: a comma may stand for the decimal
+    point, a UTC offset may reach 24:00, and the value must fit in a signed
+    64-bit nanosecond count (years 1678 to 2262). Integers, not floats or
+    datetimes, so a one-nanosecond difference is seen.
+    """
     if not isinstance(v, str):
         return None
     m = _RFC3339.fullmatch(v)
     if not m:
         return None
-    frac = (m.group(2) or "")[:7]
-    zone = "+00:00" if m.group(3) == "Z" else m.group(3)
+    year, month, day, hour, minute, second = (int(m.group(i)) for i in range(1, 7))
     try:
-        return dt.datetime.fromisoformat(m.group(1) + frac + zone)
+        moment = dt.datetime(year, month, day, hour, minute, second)
     except ValueError:
         return None
+    offset = 0
+    if m.group(8) != "Z":
+        oh, om = int(m.group(8)[1:3]), int(m.group(8)[4:6])
+        if oh > 24 or om > 59:
+            return None
+        offset = (1 if m.group(8)[0] == "+" else -1) * (oh * 60 + om)
+    delta = moment - _EPOCH
+    seconds = delta.days * 86400 + delta.seconds - offset * 60
+    nanos = int((m.group(7) or "0")[:9].ljust(9, "0"))
+    total = seconds * 1_000_000_000 + nanos
+    return total if abs(total) < 2**63 else None
 
 
 def same_identity(a, b):
@@ -83,8 +104,15 @@ def same_identity(a, b):
     return a == b
 
 
+# An approver must look like a GitHub login (letters, digits, ".", "_", "-",
+# optional "[bot]"). This refuses blank, whitespace-padded, invisible-character,
+# look-alike and e-mail-style approvers.
+_APPROVER_FORM = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(\[bot\])?")
+
+
 def approver_independent(approver, others):
-    return nonempty_str(approver) and not any(same_identity(approver, o) for o in others)
+    return (isinstance(approver, str) and _APPROVER_FORM.fullmatch(approver) is not None
+            and not any(same_identity(approver, o) for o in others))
 
 
 def variant(base, path, value):
@@ -157,12 +185,31 @@ def plan_model(inp):
     return expires is not None and now is not None and now < expires
 
 
+APPROVER_FORMS = [
+    ("approver-blank", "Approver is a single space", " "),
+    ("approver-zero-width", "Approver is a zero-width space", "\u200b"),
+    ("approver-requester-trailing-space", "Approver is the requester with a trailing space", "alice "),
+    ("approver-requester-invisible-char", "Approver is the requester with an invisible character inside", "al\u200bice"),
+    ("approver-requester-fullwidth", "Approver is the requester with a fullwidth letter", "\uff41lice"),
+    ("approver-requester-email-form", "Approver is the requester written as an e-mail address", "alice@corp.com"),
+    ("approver-agent-bot-suffix-spoof", "Approver is the agent with a path prefix", "app/deploy-agent"),
+]
+
+
 def plan_catalog():
     base, a = PLAN_BASE, PLAN_BASE["approval"]
     cat = []
 
     def add(i, d, inp, expected="deny"):
         cat.append({"id": i, "description": d, "input": inp, "expected": expected})
+
+    for i, d, v in APPROVER_FORMS:
+        add(i, d, variant(base, ["approval", "approver"], v))
+    add("requester-email-approver-bare", "Requester is recorded as an e-mail address and the approver as the bare name",
+        {**variant(base, ["execution", "requested_by"], "alice@corp.com"),
+         "approval": {**a, "requested_by": "alice@corp.com", "approver": "alice"}}, expected="allow-by-design")
+    add("approver-not-a-real-person", "Approver is a well-formed name that no person holds ('auto-approved')",
+        variant(base, ["approval", "approver"], "auto-approved"), expected="allow-by-design")
 
     both = lambda v: {**variant(base, ["artifact", "sha256"], v), "approval": {**a, "plan_sha256": v}}
     add("substituted-digest", "Approval names a digest that differs from the plan to apply by one character",
@@ -258,6 +305,14 @@ def img_catalog():
     def add(i, d, inp, expected="deny"):
         cat.append({"id": i, "description": d, "input": inp, "expected": expected})
 
+    for i, d, v in APPROVER_FORMS:
+        add(i, d, variant(base, ["approval", "approver"], v))
+    add("requester-email-approver-bare", "Requester is recorded as an e-mail address and the approver as the bare name",
+        {**variant(base, ["execution", "requested_by"], "alice@corp.com"),
+         "approval": {**a, "requested_by": "alice@corp.com", "approver": "alice"}}, expected="allow-by-design")
+    add("approver-not-a-real-person", "Approver is a well-formed name that no person holds ('auto-approved')",
+        variant(base, ["approval", "approver"], "auto-approved"), expected="allow-by-design")
+
     ref = lambda r, approved=IMG_DIGEST: {**variant(base, ["image", "reference"], r),
                                           "approval": {**a, "image_digest": approved}}
     add("tag-only", "Mutable tag instead of a digest", ref(f"{REPO}:latest"))
@@ -318,16 +373,41 @@ TARGETS = {
 
 # ------------------------------------------------------------------ fuzzer
 
+def encodable(case):
+    """False for inputs that are not valid JSON text: a lone surrogate, or NaN or
+    Infinity. They cannot be written as JSON a policy engine could read, so they
+    cannot reach it."""
+    try:
+        json.dumps(case, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        return True
+    except (UnicodeEncodeError, ValueError):
+        return False
+
+
 def evaluate(opa, target, cases):
-    """Evaluate the policy for every case in one OPA call."""
+    """Evaluate the policy for every case in one OPA call. An input that cannot
+    be encoded is reported as refused; it never reaches the policy."""
+    ok = [i for i, c in enumerate(cases) if encodable(c)]
+    skipped = len(cases) - len(ok)
+    if skipped:
+        print(f"  note: {skipped} input(s) are not valid JSON text and were not evaluated")
     query = "[a | some c in input.cases; a := " + target["package"] + ".allow with input as c]"
-    proc = subprocess.run(
-        [opa, "eval", "-f", "json", "-d", str(target["policy"]), "-I", query],
-        input=json.dumps({"cases": cases}), capture_output=True, text=True,
-    )
+    # OPA reads the input through a YAML parser, which rejects the surrogate-pair
+    # escapes json.dumps writes for characters above U+FFFF. Write them raw.
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "input.json"
+        path.write_text(json.dumps({"cases": [cases[i] for i in ok]}, ensure_ascii=False), encoding="utf-8")
+        proc = subprocess.run(
+            [opa, "eval", "-f", "json", "-d", str(target["policy"]), "-i", str(path), query],
+            capture_output=True, text=True,
+        )
     if proc.returncode != 0:
         sys.exit("opa failed: " + proc.stderr.strip())
-    return json.loads(proc.stdout)["result"][0]["expressions"][0]["value"]
+    values = json.loads(proc.stdout)["result"][0]["expressions"][0]["value"]
+    result = [False] * len(cases)
+    for i, v in zip(ok, values):
+        result[i] = v
+    return result
 
 
 JUNK = [None, 0, 1, True, False, "", [], {}, "false", "true", "null"]
