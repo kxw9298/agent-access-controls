@@ -7,7 +7,7 @@ All notable changes to this project are documented here.
 ### Added
 
 - Image path, first slice: `policies/image_admission` decides whether an approval covers an exact image digest (pinned reference, agent, requester, independent approver, expiry); `examples/image_admission` is a built-in Kubernetes `ValidatingAdmissionPolicy` that refuses pods whose images are not pinned to a published digest. Seven policy scenarios and six cluster scenarios run in CI on a kind cluster. Signing and attestation are not implemented. See `docs/image-admission.md`.
-- Attack harness for the approval policy (`scripts/attack_harness.py`): a 23-attack catalog and a seeded mutation fuzzer judged by an independent reference model, with an interface for inputs from other attackers. Runs in CI. See `docs/attack-harness.md`.
+- Attack harness for the approval policies (`scripts/attack_harness.py`): 23 attacks for plan approval and 27 for image approval, with a seeded mutation fuzzer judged by an independent reference model, with an interface for inputs from other attackers. Runs in CI. See `docs/attack-harness.md`.
 - Hardened-baseline model (`scripts/demo_hardened_baseline.sh`): a saved plan per run that cannot be overwritten, run-keyed approval with self-review prevented, apply only from the apply job, and a new approval for a new run. Labeled as a model; it does not test any product.
 - A shared scenario list (`evaluation/scenarios.json`) of seven scenarios, including re-planning after approval, run against the no-binding baseline, the hardened baseline and approval binding. A configuration with no mechanism for a scenario reports it as `unsupported`, separate from a pass or a failure.
 - `results.json` schema 1.1.0: configuration kind, trust assumptions, `unsupported` status, and the release an attack tried to land. `scripts/render_comparison.py` renders the comparison table in `docs/evaluation.md` from the results, and CI checks that it matches.
@@ -16,6 +16,7 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Both approval policies accepted a blank approver, and approvers that were the requester or agent written another way (whitespace padding, invisible characters, look-alike letters, e-mail style). The approver must now look like a GitHub login (letters, digits, `.`, `_`, `-`, optional `[bot]`); anything else is refused. Found by LLM attackers; see `evaluation/attack-runs/run-1`.
 - The approval policy compared the approver with the requester and agent case-sensitively, so an approver recorded as `Alice` for a change requested by `alice` passed the self-approval check. Identities are now compared without regard to case. Found by the attack harness.
 
 ### Changed

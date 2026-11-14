@@ -83,6 +83,34 @@ test_denies_agent_as_approver_with_different_case if {
 	denied_with(with_approval({"approver": "DEPLOY-AGENT"}), "approver is missing, or is the requester or the agent")
 }
 
+test_denies_blank_approver if {
+	denied_with(with_approval({"approver": " "}), "approver identity is not in the accepted form")
+}
+
+test_denies_zero_width_approver if {
+	denied_with(with_approval({"approver": "\u200b"}), "approver identity is not in the accepted form")
+}
+
+test_denies_whitespace_padded_self_approval if {
+	denied_with(with_approval({"approver": "alice "}), "approver identity is not in the accepted form")
+}
+
+test_denies_invisible_character_in_approver if {
+	denied_with(with_approval({"approver": "al\u200bice"}), "approver identity is not in the accepted form")
+}
+
+test_denies_fullwidth_look_alike_approver if {
+	denied_with(with_approval({"approver": "\uff41lice"}), "approver identity is not in the accepted form")
+}
+
+test_denies_email_style_approver if {
+	denied_with(with_approval({"approver": "alice@corp.com"}), "approver identity is not in the accepted form")
+}
+
+test_allows_bot_approver if {
+	change_approval.allow with input as (with_approval({"approver": "review-bot[bot]"}))
+}
+
 test_denies_missing_approver if {
 	inp := with_field("approval", object.remove(approval, ["approver"]))
 	denied_with(inp, "approver is missing, or is the requester or the agent")
