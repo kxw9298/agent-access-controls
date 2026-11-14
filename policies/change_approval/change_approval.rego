@@ -52,6 +52,9 @@ requester_present if nonempty_string(input.execution.requested_by)
 # Anything other than an explicit "no approval needed" requires approval.
 approval_not_required if input.plan_decision.requires_approval == false
 
+# Defaults to false so that `decision` is defined when no approval is needed.
+default approval_required := false
+
 approval_required if not approval_not_required
 
 approval_present if is_object(input.approval)
@@ -66,6 +69,17 @@ agent_matches if input.approval.agent == input.execution.agent
 requester_matches if input.approval.requested_by == input.execution.requested_by
 
 approver_present if nonempty_string(input.approval.approver)
+
+# An identity must be visible ASCII: no spaces, control characters, zero-width
+# or look-alike characters. The policy compares identity strings as text and
+# cannot tell that two different strings name one person, so anything that
+# could hide such a difference is refused. Identities must also come from the
+# identity provider in one canonical form; an alias such as an email address
+# for a username is not detected. See docs/approval-binding.md.
+bad_identity(value) if {
+	is_string(value)
+	not regex.match(`^[!-~]+$`, value)
+}
 
 # Identities are compared without regard to letter case. GitHub logins and many
 # directory identities are case-insensitive, so "Alice" and "alice" are one
@@ -125,6 +139,28 @@ deny_reasons contains "approver is missing, or is the requester or the agent" if
 	approval_required
 	approval_present
 	not approver_independent
+}
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if bad_identity(input.execution.agent)
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if bad_identity(input.execution.requested_by)
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_required
+	approval_present
+	bad_identity(input.approval.approver)
+}
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_required
+	approval_present
+	bad_identity(input.approval.agent)
+}
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_required
+	approval_present
+	bad_identity(input.approval.requested_by)
 }
 
 deny_reasons contains "approval has expired or has no valid expiry" if {

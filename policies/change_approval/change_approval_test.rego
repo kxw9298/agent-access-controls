@@ -140,3 +140,43 @@ test_decision_records_refusal if {
 	d.requested_by == "alice"
 	d.approver == "bob"
 }
+
+test_decision_is_defined_when_no_approval_is_needed if {
+	inp := with_field("plan_decision", {"allow": true, "requires_approval": false})
+	d := change_approval.decision with input as inp
+	d.allow == true
+	d.approval_required == false
+}
+
+identity_reason := "an identity contains characters other than visible ASCII"
+
+test_denies_approver_with_trailing_space if {
+	denied_with(with_approval({"approver": "alice "}), identity_reason)
+}
+
+test_denies_approver_with_zero_width_space if {
+	denied_with(with_approval({"approver": "ali\u200bce"}), identity_reason)
+}
+
+test_denies_decomposed_unicode_approver if {
+	inp := with_field("execution", {"agent": "deploy-agent", "requested_by": "jos\u00e9", "now": "2026-11-09T12:00:00Z"})
+	inp2 := object.union(inp, {"approval": object.union(approval, {"requested_by": "jos\u00e9", "approver": "jose\u0301"})})
+	denied_with(inp2, identity_reason)
+}
+
+test_denies_non_ascii_executing_agent if {
+	inp := with_field("execution", {"agent": "deploy-ag\u0435nt", "requested_by": "alice", "now": "2026-11-09T12:00:00Z"})
+	denied_with(inp, identity_reason)
+}
+
+test_denies_whitespace_only_approver if {
+	denied_with(with_approval({"approver": " "}), identity_reason)
+}
+
+test_allows_bot_style_identities if {
+	inp := object.union(base, {
+		"execution": {"agent": "owner/repo/.github/workflows/x.yml@refs/heads/main", "requested_by": "dependabot[bot]", "now": "2026-11-09T12:00:00Z"},
+		"approval": object.union(approval, {"agent": "owner/repo/.github/workflows/x.yml@refs/heads/main", "requested_by": "dependabot[bot]"}),
+	})
+	change_approval.allow with input as inp
+}

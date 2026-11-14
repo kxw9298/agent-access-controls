@@ -17,7 +17,7 @@ deterministic, such as an LLM agent, can supply their own inputs with
 
 Usage:
   python scripts/attack_harness.py [--opa opa] [--seeds 20] [--per-seed 300]
-         [--out results/attack-harness] [--candidates file.jsonl]
+         [--out results/attack-harness] [--candidates file.jsonl ...]
 Exit status 0: no security finding and every catalog attack was refused.
 """
 import argparse
@@ -72,20 +72,33 @@ def valid_digest(v):
 
 
 _RFC3339 = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})")
+_EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+_INT64 = 2**63
 
 
 def parse_time(v):
+    """Nanoseconds since the epoch, or None. OPA keeps times as int64
+    nanoseconds, so an instant outside roughly 1677 to 2262 is an error."""
     if not isinstance(v, str):
         return None
     m = _RFC3339.fullmatch(v)
     if not m:
         return None
-    frac = (m.group(2) or "")[:7]
     zone = "+00:00" if m.group(3) == "Z" else m.group(3)
     try:
-        return dt.datetime.fromisoformat(m.group(1) + frac + zone)
+        moment = dt.datetime.fromisoformat(m.group(1) + zone)
     except ValueError:
         return None
+    frac_ns = int((m.group(2) or ".")[1:].ljust(9, "0")[:9] or 0)
+    delta = moment - _EPOCH
+    ns = (delta.days * 86400 + delta.seconds) * 10**9 + frac_ns
+    return ns if -_INT64 <= ns < _INT64 else None
+
+
+def visible_ascii(v):
+    """Identities must be visible ASCII, with no spaces or control, zero-width
+    or look-alike characters (see policies/change_approval)."""
+    return isinstance(v, str) and re.fullmatch(r"[!-~]+", v) is not None
 
 
 def same_identity(a, b):
@@ -110,6 +123,8 @@ def model_allows(inp):
     ex_user = get(inp, "execution", "requested_by")
     if not (nonempty_str(ex_agent) and nonempty_str(ex_user)):
         return False
+    if not (visible_ascii(ex_agent) and visible_ascii(ex_user)):
+        return False
     if pd_req is False:
         return True
     ap = get(inp, "approval")
@@ -123,6 +138,8 @@ def model_allows(inp):
         return False
     approver = ap.get("approver")
     if not nonempty_str(approver):
+        return False
+    if not (visible_ascii(approver) and visible_ascii(ap["requested_by"]) and visible_ascii(ap["agent"])):
         return False
     others = [ap["requested_by"], ap["agent"], ex_user, ex_agent]
     if any(same_identity(approver, o) for o in others):
@@ -162,7 +179,8 @@ def variant(path, value):
 
 
 def attack_catalog():
-    """(id, description, input, expected) with expected 'deny' or 'allow-by-design'."""
+    """(id, description, input, expected). Expected is 'deny', 'allow' (a legitimate
+    control, to catch false refusals) or 'allow-by-design' (a known limit)."""
     a = BASE["approval"]
     cat = []
 
@@ -207,6 +225,29 @@ def attack_catalog():
         variant(["plan_decision", "allow"], False))
     add("identity-missing", "Executing agent identity is missing",
         variant(["execution", "agent"], _MISSING))
+    # Found by LLM attackers: identity strings that differ as text but could
+    # name one person.
+    add("approver-decomposed-unicode", "Approver is the requester's name in decomposed Unicode form",
+        {**variant(["execution", "requested_by"], "jos\u00e9"),
+         "approval": {**a, "requested_by": "jos\u00e9", "approver": "jose\u0301"}})
+    add("approver-trailing-space", "Approver is the requester's name plus a trailing space",
+        variant(["approval", "approver"], "alice "))
+    add("approver-zero-width", "Approver is the requester's name with a zero-width space",
+        variant(["approval", "approver"], "ali\u200bce"))
+    add("approver-greek-sigma", "Requester and approver differ only by Greek final sigma",
+        {**variant(["execution", "requested_by"], "\u03b1\u03c2"),
+         "approval": {**a, "requested_by": "\u03b1\u03c2", "approver": "\u0391\u03a3"}})
+    add("approver-whitespace-only", "Approver is a single space", variant(["approval", "approver"], " "))
+    add("agent-homoglyph", "Executing agent uses a Cyrillic look-alike letter",
+        variant(["execution", "agent"], "deploy-ag\u0435nt"))
+    add("expiry-year-2200", "Legitimate control: a far-future expiry is allowed (no maximum lifetime is checked)",
+        variant(["approval", "expires_at"], "2200-01-01T00:00:00Z"), expected="allow")
+    add("expiry-one-nanosecond-ahead", "Legitimate control: expiry one nanosecond after now",
+        variant(["approval", "expires_at"], "2026-12-01T12:00:00.000000001Z"), expected="allow")
+    add("bot-style-identities", "Legitimate control: workflow reference and [bot] login",
+        {**BASE, "execution": {"agent": "o/r/.github/workflows/x.yml@refs/heads/main", "requested_by": "dependabot[bot]", "now": NOW},
+         "approval": {**a, "agent": "o/r/.github/workflows/x.yml@refs/heads/main", "requested_by": "dependabot[bot]"}},
+        expected="allow")
     # Known limits: the policy trusts what the executor supplies.
     add("backdated-clock", "The executor supplies a clock value before expiry for an expired approval",
         {**variant(["execution", "now"], "2026-11-01T00:00:00Z"),
@@ -284,7 +325,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--per-seed", type=int, default=300)
     ap.add_argument("--out", default=str(ROOT / "results" / "attack-harness"))
-    ap.add_argument("--candidates", help="JSON lines of inputs proposed by an external attacker")
+    ap.add_argument("--candidates", nargs="+", help="JSON lines files of inputs proposed by an external attacker")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -294,7 +335,7 @@ def main():
     allowed = evaluate(args.opa, [c["input"] for c in catalog])
     catalog_results, catalog_failures = [], 0
     for c, got in zip(catalog, allowed):
-        expected_allow = c["expected"] == "allow-by-design"
+        expected_allow = c["expected"] in ("allow-by-design", "allow")
         ok = got == expected_allow
         catalog_failures += 0 if ok else 1
         catalog_results.append({"id": c["id"], "description": c["description"],
@@ -307,10 +348,10 @@ def main():
         rng = random.Random(seed)
         for _ in range(args.per_seed):
             cases.append({"source": f"fuzz-seed-{seed}", "input": mutate(rng, BASE)})
-    if args.candidates:
-        for n, line in enumerate(Path(args.candidates).read_text().splitlines(), 1):
+    for name in args.candidates or []:
+        for n, line in enumerate(Path(name).read_text().splitlines(), 1):
             if line.strip():
-                cases.append({"source": f"candidate-line-{n}", "input": json.loads(line)})
+                cases.append({"source": f"{Path(name).name}:{n}", "input": json.loads(line)})
     decisions = evaluate(args.opa, [c["input"] for c in cases])
     findings, false_refusals, both_allow = [], [], 0
     for c, got in zip(cases, decisions):

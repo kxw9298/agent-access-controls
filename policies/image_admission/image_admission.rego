@@ -56,6 +56,15 @@ agent_matches if input.approval.agent == input.execution.agent
 
 requester_matches if input.approval.requested_by == input.execution.requested_by
 
+# An identity must be visible ASCII: no spaces, control characters, zero-width
+# or look-alike characters. The policy compares identity strings as text and
+# cannot tell that two different strings name one person. An alias such as an
+# email address for a username is not detected.
+bad_identity(value) if {
+	is_string(value)
+	not regex.match(`^[!-~]+$`, value)
+}
+
 # Identities are compared without regard to letter case: "Alice" and "alice"
 # are one person. An identity that is not a string makes the comparison
 # undefined, which denies.
@@ -80,6 +89,25 @@ deny_reasons contains "executing agent identity is missing" if not agent_present
 deny_reasons contains "requesting user identity is missing" if not requester_present
 
 deny_reasons contains "no approval was provided" if not approval_present
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if bad_identity(input.execution.agent)
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if bad_identity(input.execution.requested_by)
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_present
+	bad_identity(input.approval.approver)
+}
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_present
+	bad_identity(input.approval.agent)
+}
+
+deny_reasons contains "an identity contains characters other than visible ASCII" if {
+	approval_present
+	bad_identity(input.approval.requested_by)
+}
 
 deny_reasons contains "approved digest does not match the image to be deployed" if {
 	approval_present

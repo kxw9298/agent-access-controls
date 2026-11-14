@@ -70,6 +70,9 @@ These are outside the v0.2 guarantee:
 - **Administrators.** A repository or cloud administrator can change the workflow or bypass it.
 - **Correctness.** A matching digest shows the applied plan is the approved plan. It does not show the plan is safe or that the reviewer understood it.
 - **Identity source.** In the demonstration script, the agent, user, and approver values are written by the script. In the reference pipeline they come from the verified GitHub Actions OIDC token and GitHub's review history (see [`examples/terraform_pipeline`](../examples/terraform_pipeline/README.md)). The pipeline's "agent" is the workflow that runs; it does not distinguish an AI agent from any other caller of that workflow.
+- **Identity form.** The policy compares agent, requester and approver as text, without regard to letter case, and refuses any identity that is not visible ASCII. It cannot tell that an email address and a username, or `user:alice` and `alice`, are one person. Identities must come from the identity provider in one canonical form. In the reference pipeline they are the workflow reference, the GitHub actor and the GitHub approval login.
+- **Who the approver is.** The policy checks that the approver is a visible-ASCII identity different from the requester and the agent. It does not check that the approver is a human; a bot login or any other string passes. Limiting who can approve is up to the environment's required-reviewer settings.
+- **Approval lifetime and clock.** The policy checks `now < expires_at`. It does not limit how far in the future the expiry is, and it trusts `execution.now` from the executor. The pipeline sets the expiry and the clock.
 - **Other CI systems and production use.**
 
 ## How it is demonstrated

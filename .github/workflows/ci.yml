@@ -157,8 +157,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Run the attack catalog and the fuzzer
-        run: python scripts/attack_harness.py
+      - name: Run the attack catalog, the fuzzer and the stored LLM attacker candidates
+        run: python scripts/attack_harness.py --candidates evaluation/llm-attacks/types.jsonl evaluation/llm-attacks/logic.jsonl evaluation/llm-attacks/semantics.jsonl
       - name: Publish the results
         if: always()
         uses: actions/upload-artifact@v4

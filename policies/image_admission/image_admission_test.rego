@@ -115,3 +115,18 @@ test_denies_missing_execution_identity if {
 	inp := with_field("execution", {"now": "2026-12-01T12:00:00Z"})
 	denied_with(inp, "executing agent identity is missing")
 }
+
+identity_reason := "an identity contains characters other than visible ASCII"
+
+test_denies_approver_with_trailing_space if {
+	denied_with(with_approval({"approver": "alice "}), identity_reason)
+}
+
+test_denies_approver_with_zero_width_space if {
+	denied_with(with_approval({"approver": "ali\u200bce"}), identity_reason)
+}
+
+test_denies_non_ascii_executing_agent if {
+	inp := with_field("execution", object.union(execution, {"agent": "deploy-ag\u0435nt"}))
+	denied_with(inp, identity_reason)
+}
