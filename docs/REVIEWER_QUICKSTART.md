@@ -6,6 +6,8 @@ This is the shortest path to running the demonstrations yourself and checking wh
 
 A control for one case: an AI agent proposes a Terraform change, a person approves it, and a pipeline applies it. The control binds the approval to the SHA-256 digest of the saved plan, the agent, the requesting user and an expiry, and refuses an apply that does not match. The design and its limits are in [approval-binding.md](approval-binding.md). What the demonstrations do not show is in [evaluation.md](evaluation.md); please read that page too.
 
+Two more parts are optional: the container-image path and the attack harness. Both are described below.
+
 ## Prerequisites
 
 - Docker (Linux, or Docker Desktop on macOS) and Git.
@@ -56,13 +58,39 @@ A scenario with no mechanism in a configuration is `unsupported`, with a reason.
 
 ## The image path (optional second interface)
 
-If you also want to review the container-image path, see [image-admission.md](image-admission.md). Stage 1 needs only OPA and `jq`; stage 2 needs a Kubernetes 1.30+ cluster such as kind. It is not part of `results.json` and does not run in the container.
+If you also want to review the container-image path, see [image-admission.md](image-admission.md). The approval is a signed in-toto record that is verified before the policy runs; the image itself is not signed.
+
+```sh
+scripts/demo_image_admission.sh                                                        # stage 1
+scripts/demo_image_admission_cluster.sh results/image-admission/approved-images.yaml   # stage 2
+```
+
+Stage 1 needs OPA, `jq` and cosign v2, and runs eleven scenarios, four of them about the signed record (altered, unsigned, signed by another key, inconsistent). Stage 2 needs a Kubernetes 1.30+ cluster such as kind and runs six scenarios with server-side dry run, so no image is pulled. Neither is part of `results.json` or runs in the container.
+
+## The attack harness (optional)
+
+The harness tries to get the two approval policies to allow something they should refuse, and judges each try against a reference model written separately in Python. See [attack-harness.md](attack-harness.md).
+
+```sh
+python3 scripts/attack_harness.py   # needs OPA on PATH and Python 3.10 or later
+```
+
+It runs the named attacks and a seeded fuzzer, and writes `results/attack-harness/summary.json`. A case where the policy allows and the model denies is a security finding and fails the run; the reverse is a false refusal and is only reported. To replay the stored inputs from the first run with LLM attackers:
+
+```sh
+cat evaluation/attack-runs/run-1/attacker-*-inputs.jsonl > /tmp/run1.jsonl
+python3 scripts/attack_harness.py --target change_approval --seeds 1 --per-seed 1 \
+  --candidates /tmp/run1.jsonl --out results/attack-harness-replay
+```
+
+Read the run's [README](../evaluation/attack-runs/run-1/README.md) before relying on it: the policy and the reference model were tightened after those attackers reported, so the replay shows that the fix covers their inputs, not an independent count of defects. Most useful from a reviewer: your own inputs in a JSONL file, passed with `--candidates`.
 
 ## Not yet covered
 
 - **The hosted approved-apply path.** The reference GitHub Actions pipeline refuses on pull requests in CI. The path where a second reviewer approves a workflow run and the apply job proceeds has not been run end to end. Treat it as pending; it is tracked in [#11](https://github.com/kxw9298/agent-access-controls/issues/11). This page will link the run and its evidence when it exists.
 - **Real products and settings.** The hardened baseline is a model of one design. It has not been run against real GitHub environment protection or any other tool, so do not read its results as what those do.
-- **Image signing and attestation.** The image path checks a digest only. It does not verify who built the image.
+- **Image signing.** On the image path the approval record is signed and verified, but the image itself is not signed and nothing checks who built it. The key that signs approval records has no custody, rotation or revocation.
+- **Replay, revocation and approval lifetime.** The policies accept the same approval again for the same artifact until it expires, an approval cannot be revoked, and there is no maximum lifetime.
 - **Anything outside the Terraform and GitHub Actions path and the image path described above.**
 
 ## Report what you find
