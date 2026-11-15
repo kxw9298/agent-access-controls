@@ -4,7 +4,7 @@ Open-source guardrails that control what AI agents can change in software and cl
 
 The scope is Terraform saved-plan changes through GitHub Actions. A second interface, admission of container images by approved digest in a local Kubernetes cluster, is demonstrated (v0.3, first slice); image signing and attestation are planned. Control of agent tool, API, and data access (the v0.1 tool-authorization policy) is groundwork for a later stage and is not part of the change-path guarantee.
 
-> **Status: pre-alpha.** The latest tagged release is v0.1.0 (control catalog and the first authorization policy). `main` also contains the v0.2 change path; see the roadmap. Not production-ready; interfaces will change.
+> **Status: pre-alpha.** The latest tagged release is v0.2.0: the change path for Terraform plans on GitHub Actions, a first slice of the container-image path, and a first slice of the attack harness. Not production-ready; interfaces will change. Not yet covered: the approved-apply path on real GitHub, image signing and attestation, and LLM-driven attacks in CI. See the roadmap.
 
 ## The problem
 
@@ -24,11 +24,11 @@ The [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-1
 | --- | --- | --- |
 | Control catalog: objective, enforcement point, and risks addressed for each control | [`controls/`](controls/) | In progress |
 | Policy-as-code: authorization policies in Rego for [Open Policy Agent](https://www.openpolicyagent.org/), with unit tests | [`policies/`](policies/) | First policy |
-| Decision-record schema for tool-call decisions | [`schemas/`](schemas/) | On `main`, not yet released |
+| Decision-record schema for tool-call decisions | [`schemas/`](schemas/) | Released in v0.2.0 |
 | Reference architecture and threat model | [`docs/`](docs/) | Draft |
-| Change path: policy gate on Terraform plans, approval bound to the plan digest, workload identity from GitHub Actions OIDC, reference pipeline. Design and limits in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/`, `scripts/`, `.github/workflows/` | On `main`; the approved-apply path is not yet exercised end to end |
-| Demonstration, no-control baseline, and container runner | `scripts/`, `containers/` | On `main`; see [`docs/evaluation.md`](docs/evaluation.md) |
-| Image path: approval of an exact image digest, and Kubernetes admission that refuses any other. Signing and attestation not implemented. See [`docs/image-admission.md`](docs/image-admission.md) | `policies/image_admission/`, `examples/image_admission/`, `scripts/` | Demonstrated in CI on a kind cluster |
+| Change path: policy gate on Terraform plans, approval bound to the plan digest, workload identity from GitHub Actions OIDC, reference pipeline. Design and limits in [`docs/approval-binding.md`](docs/approval-binding.md) | `policies/`, `examples/`, `scripts/`, `.github/workflows/` | Released in v0.2.0; the approved-apply path on real GitHub is not yet exercised |
+| Demonstration, no-control baseline, and container runner | `scripts/`, `containers/` | Released in v0.2.0; see [`docs/evaluation.md`](docs/evaluation.md) |
+| Image path: approval of an exact image digest, and Kubernetes admission that refuses any other. Signing and attestation not implemented. See [`docs/image-admission.md`](docs/image-admission.md) | `policies/image_admission/`, `examples/image_admission/`, `scripts/` | Released in v0.2.0; demonstrated in CI on a kind cluster |
 | Deployment examples: Infrastructure-as-Code for an open-source gateway on Kubernetes and for a managed cloud API gateway | `deploy/` | Planned |
 
 ## Design principles
@@ -96,9 +96,9 @@ Records of authorized *changes* on the change path are a separate item: signed a
 | Version | Scope | Status |
 | --- | --- | --- |
 | v0.1 | Control catalog, tool-authorization policy with tests, threat model, CI | Released |
-| v0.2 | Change path, first slice: policy gate on Terraform plans; approval bound to the saved-plan digest and to the agent and user identity; identity from GitHub Actions OIDC; reference pipeline; demonstration and no-control baseline | On `main`; approved-apply path not yet exercised |
-| v0.3 | Second interface: container images approved by digest and admitted in a local Kubernetes cluster. First slice: approval policy and a built-in Kubernetes admission policy. Planned next: the approval recorded as a signed attestation ([cosign](https://github.com/sigstore/cosign), [in-toto](https://github.com/in-toto/attestation) format), verified with [Kyverno](https://kyverno.io/) | First slice demonstrated; signing planned |
-| v0.4 | Attack harness. First slice: a named attack catalog and a seeded mutation fuzzer for the two approval policies, judged by independent reference models ([`docs/attack-harness.md`](docs/attack-harness.md)). Planned: attacks driven by an LLM agent, other policies, attacks based on public incidents | First slice on `main`; LLM-driven attacks not done |
+| v0.2 | Change path, first slice: policy gate on Terraform plans; approval bound to the saved-plan digest and to the agent and user identity; identity from GitHub Actions OIDC; reference pipeline; demonstration and no-control baseline | Released in v0.2.0; approved-apply path on real GitHub not yet exercised |
+| v0.3 | Second interface: container images approved by digest and admitted in a local Kubernetes cluster. First slice: approval policy and a built-in Kubernetes admission policy. Planned next: the approval recorded as a signed attestation ([cosign](https://github.com/sigstore/cosign), [in-toto](https://github.com/in-toto/attestation) format), verified with [Kyverno](https://kyverno.io/) | First slice in v0.2.0; signing planned |
+| v0.4 | Attack harness. First slice: a named attack catalog and a seeded mutation fuzzer for the two approval policies, judged by independent reference models ([`docs/attack-harness.md`](docs/attack-harness.md)). Planned: attacks driven by an LLM agent, other policies, attacks based on public incidents | First slice in v0.2.0; LLM-driven attacks not run in CI |
 | v0.5 | Review kit and external evaluation: reproducible instructions, an evaluation template, and published reviewer findings | Planned |
 | Later | Signed records for Terraform plan approvals; gateway deployment examples for the tool-call path; approval binding for direct tool calls; mapping to OWASP and the CSA AI Controls Matrix | Not scheduled |
 
