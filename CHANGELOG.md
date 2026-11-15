@@ -8,7 +8,7 @@ All notable changes to this project are documented here.
 
 - Controls AAC-CH-05 (approve a container image by exact digest) and AAC-CH-06 (admit only images pinned to an approved digest) in the catalog, with a new enforcement point, `admission-controller`.
 - Threats T13 to T16 for the image path in the threat model.
-- A workflow that removes tool attribution footers from pull request descriptions.
+- A workflow that removes tool attribution footers from pull request and issue descriptions and from comments when they are posted or edited. Run it by hand to clean those already posted.
 
 ### Changed
 

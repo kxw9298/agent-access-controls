@@ -1,0 +1,99 @@
+name: strip-attribution
+
+# Removes attribution footers that some tools append to pull request
+# descriptions, issue descriptions and comments, together with the session
+# link and the rule above them. Runs on new and edited pull requests, issues
+# and comments. Run it by hand (workflow_dispatch) to clean everything already
+# posted. Edits made with the workflow's own token do not trigger it again.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+  issues:
+    types: [opened, edited, reopened]
+  issue_comment:
+    types: [created, edited]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  strip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const footer = /^[ \t]*[_*]*(?:🤖 )?Generated (?:by|with) \[Claude Code\]\([^)]*\)[_*]*[ \t]*\r?$/;
+            const session = /^[ \t]*https:\/\/claude\.ai\/code\/\S+[ \t]*\r?$/;
+
+            // Returns the cleaned text, or null when there is no footer.
+            function clean(body) {
+              if (!body) return null;
+              const lines = body.split('\n');
+              if (!lines.some(l => footer.test(l))) return null;
+              const eol = body.includes('\r\n') ? '\r\n' : '\n';
+              const kept = lines
+                .filter(l => !footer.test(l) && !session.test(l))
+                .map(l => l.replace(/\r$/, ''));
+              const text = kept.join('\n').replace(/(\n[ \t]*-{3,}[ \t]*)+\s*$/, '').replace(/\s+$/, '');
+              return text.split('\n').join(eol) + eol;
+            }
+
+            const { owner, repo } = context.repo;
+            let changed = 0;
+
+            async function fixItem(item) {
+              const body = clean(item.body);
+              if (body === null) return;
+              if (item.pull_request || context.eventName === 'pull_request') {
+                await github.rest.pulls.update({ owner, repo, pull_number: item.number, body });
+              } else {
+                await github.rest.issues.update({ owner, repo, issue_number: item.number, body });
+              }
+              core.info(`Cleaned #${item.number}`);
+              changed++;
+            }
+
+            async function fixComment(comment) {
+              const body = clean(comment.body);
+              if (body === null) return;
+              await github.rest.issues.updateComment({ owner, repo, comment_id: comment.id, body });
+              core.info(`Cleaned comment ${comment.html_url}`);
+              changed++;
+            }
+
+            async function fixReviewComment(comment) {
+              const body = clean(comment.body);
+              if (body === null) return;
+              await github.rest.pulls.updateReviewComment({ owner, repo, comment_id: comment.id, body });
+              core.info(`Cleaned review comment ${comment.html_url}`);
+              changed++;
+            }
+
+            switch (context.eventName) {
+              case 'pull_request':
+                await fixItem(context.payload.pull_request);
+                break;
+              case 'issues':
+                await fixItem(context.payload.issue);
+                break;
+              case 'issue_comment':
+                await fixComment(context.payload.comment);
+                break;
+              case 'workflow_dispatch': {
+                const items = await github.paginate(github.rest.issues.listForRepo,
+                  { owner, repo, state: 'all', per_page: 100 });
+                for (const item of items) await fixItem(item);
+                const comments = await github.paginate(github.rest.issues.listCommentsForRepo,
+                  { owner, repo, per_page: 100 });
+                for (const comment of comments) await fixComment(comment);
+                const reviewComments = await github.paginate(github.rest.pulls.listReviewCommentsForRepo,
+                  { owner, repo, per_page: 100 });
+                for (const comment of reviewComments) await fixReviewComment(comment);
+                break;
+              }
+            }
+            core.info(changed ? `Removed the footer from ${changed} item(s).` : 'No attribution footer found.');
