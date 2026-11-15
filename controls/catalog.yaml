@@ -1,4 +1,5 @@
-# Control catalog for agent access to tools, APIs, and data.
+# Control catalog for AI agents: tool, API and data access, infrastructure
+# changes, and container images.
 # Field reference: controls/README.md
 version: 0.1.0
 controls:
@@ -87,7 +88,8 @@ controls:
       are denied, and high-risk changes are marked as needing approval.
     enforcement: [policy-decision-point, ci-pipeline]
     owasp_llm_2025: [LLM06]
-    status: planned
+    status: implemented
+    implementation: policies/terraform_plan
 
   - id: AAC-CH-02
     title: Bind approval to the digest of the exact change
@@ -97,7 +99,8 @@ controls:
       only.
     enforcement: [policy-decision-point, ci-pipeline]
     owasp_llm_2025: [LLM01, LLM06]
-    status: planned
+    status: implemented
+    implementation: policies/change_approval
 
   - id: AAC-CH-03
     title: Verify the artifact at execution
@@ -106,7 +109,11 @@ controls:
       and refuses to apply it unless the digest matches the approval.
     enforcement: [executor]
     owasp_llm_2025: [LLM01, LLM06]
-    status: planned
+    # Partial: shown by the local demonstration and on pull requests. The
+    # path in which a reviewer approves a run on real GitHub and the apply job
+    # proceeds has not been run end to end (issue #11).
+    status: partial
+    implementation: scripts/ci/execution_check.sh
 
   - id: AAC-CH-04
     title: Bind approval to agent and user identity, with expiry
@@ -117,7 +124,8 @@ controls:
       stale.
     enforcement: [policy-decision-point, executor]
     owasp_llm_2025: [LLM06]
-    status: planned
+    status: implemented
+    implementation: policies/change_approval
 
   - id: AAC-AU-02
     title: Produce a signed record of each authorized change
@@ -128,4 +136,34 @@ controls:
       correctness.
     enforcement: [executor, audit-log]
     owasp_llm_2025: [LLM06]
-    status: planned
+    # Partial: container image approvals are signed in-toto Statements,
+    # verified before the policy runs. Terraform plan approvals are not signed
+    # yet, and the record covers the approval, not the policy decision or the
+    # applied change. The signing key has no custody, rotation or revocation.
+    status: partial
+    implementation: scripts/attest_approval.sh
+
+  - id: AAC-CH-05
+    title: Approve a container image by exact digest
+    objective: >-
+      An approval to deploy a container image names its sha256 digest, the
+      agent and the user it acts for, and an expiry, and is given by someone
+      other than either of them. A deployment request is allowed only for
+      that digest; a tag or any other digest is refused.
+    enforcement: [policy-decision-point]
+    owasp_llm_2025: [LLM01, LLM06]
+    status: implemented
+    implementation: policies/image_admission
+
+  - id: AAC-CH-06
+    title: Admit only images pinned to an approved digest
+    objective: >-
+      In namespaces managed by agents, the cluster refuses any pod whose
+      containers or init containers are not pinned by digest to a digest on
+      the published approved list, including pods created outside the
+      pipeline. A missing list refuses.
+    enforcement: [admission-controller]
+    owasp_llm_2025: [LLM06]
+    # Demonstrated on a kind cluster in CI only.
+    status: implemented
+    implementation: examples/image_admission/admission-policy.yaml
