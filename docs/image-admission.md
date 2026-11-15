@@ -1,6 +1,6 @@
 # Image admission by approved digest (second interface)
 
-**Status:** demonstrated in CI with a local policy stage and a kind cluster. Not production-ready. Signature and attestation verification are not implemented.
+**Status:** demonstrated in CI with a local policy stage and a kind cluster. Approvals are signed records. Not production-ready. Verification of who built an image is not implemented.
 
 ## The problem
 
@@ -10,6 +10,8 @@ An AI agent that can propose a deployment can also name the image to run. A pers
 
 Two stages, kept separate on purpose.
 
+**The signed approval record** ([`scripts/attest_approval.sh`](../scripts/attest_approval.sh)). The approval is wrapped in an [in-toto Statement](https://github.com/in-toto/attestation) (subject: the approved image; predicate: the approval) and signed with [cosign](https://github.com/sigstore/cosign). Before the policy runs, the record is verified: the signature must match the trusted public key, and the record must be consistent with itself (its subject is the digest it approves). A record that is missing, unsigned, altered after signing, signed by another key or inconsistent is rejected, and the policy then sees no approval.
+
 **Stage 1, the approval decision** ([`policies/image_admission`](../policies/image_admission/image_admission.rego)). An OPA policy that allows a deployment request only if:
 
 - the image reference is pinned to a `sha256` digest;
@@ -18,7 +20,7 @@ Two stages, kept separate on purpose.
 - the approver is neither the requester nor the agent;
 - the approval has not expired.
 
-When it allows, it publishes the approved digest. When it denies, it publishes nothing.
+When it allows, it publishes the approved digest. When it denies, it publishes nothing. The ConfigMap it produces carries the SHA-256 of the signed record it came from, so the list in the cluster can be traced to the record.
 
 **Stage 2, admission in the cluster** ([`examples/image_admission/admission-policy.yaml`](../examples/image_admission/admission-policy.yaml)). A built-in Kubernetes `ValidatingAdmissionPolicy` (Kubernetes 1.30 or later, no extra controller). In namespaces labeled `agent-managed=true`, it refuses any pod, including its init containers, whose images are not pinned by digest to a digest in the `approved-images` ConfigMap. A missing ConfigMap refuses.
 
@@ -27,7 +29,7 @@ Stage 2 does not trust stage 1 or the agent. Someone who skips the pipeline and 
 ## Run it
 
 ```sh
-scripts/demo_image_admission.sh                    # stage 1; needs OPA and jq
+scripts/demo_image_admission.sh                    # stage 1; needs OPA, jq and cosign v2
 scripts/demo_image_admission_cluster.sh results/image-admission/approved-images.yaml   # stage 2; needs a cluster
 ```
 
@@ -44,6 +46,10 @@ Stage 2 uses server-side dry run, so no image is pulled and no pod starts. CI ru
 | 1 | expired approval | denied |
 | 1 | self-approval | denied |
 | 1 | no approval | denied |
+| 1 | record altered after signing | rejected; policy sees no approval |
+| 1 | record not signed | rejected |
+| 1 | record signed by another key | rejected |
+| 1 | record signed, but its subject differs from the digest it approves | rejected |
 | 2 | approved digest | admitted |
 | 2 | unapproved digest | refused |
 | 2 | tag only, or a versioned tag | refused |
@@ -52,7 +58,10 @@ Stage 2 uses server-side dry run, so no image is pulled and no pod starts. CI ru
 
 ## What this does not show
 
-- **Who built the image.** A digest proves the content is the content that was approved. It does not prove who built it, that it came from a trusted pipeline, or that it is free of vulnerabilities. Signing and attestation (cosign, in-toto, Kyverno `verifyImages`) are planned and not implemented. Do not read this page as a supply-chain provenance control.
+- **Who built the image.** A digest proves the content is the content that was approved. It does not prove who built it, that it came from a trusted pipeline, or that it is free of vulnerabilities. Signing the *image* and verifying that signature in the cluster (cosign on the image, Kyverno `verifyImages`) is not implemented. The signature here is on the approval record, not on the image. Do not read this page as a supply-chain provenance control.
+- **Who can sign.** A valid signature shows the record was made by the holder of the private key and not changed afterwards. It does not show that a person approved. Whoever holds the key can sign any approval, including one with an invented approver. Key custody, rotation and revocation are not handled. In the demonstration the keys are generated per run and discarded.
+- **Record format.** The signature is a detached signature over the Statement file (`cosign sign-blob`), not a DSSE envelope, and nothing is written to a transparency log. The predicate type is an identifier chosen for this project and is not registered anywhere. Verification here uses an explicit public key and ignores the log.
+- **The cluster does not check the record.** The record is verified in stage 1, before the digest list is published. Stage 2 only sees the list. Someone who can edit the ConfigMap can add a digest without a record.
 - **How the approved list is written.** In the demonstration a script writes the ConfigMap from the policy decision. In a real setup, whoever can edit that ConfigMap, or the admission policy itself, can approve anything. Protecting them (RBAC, a controller that only the pipeline can use) is not built.
 - **Ephemeral containers** added through the `pods/ephemeralcontainers` subresource are not covered.
 - **Controllers.** The policy matches pods. A Deployment with a bad image is accepted, and its pods are refused.

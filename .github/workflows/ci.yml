@@ -138,6 +138,12 @@ jobs:
       - uses: open-policy-agent/setup-opa@v2.4.0
         with:
           version: latest
+      - name: Install cosign v2.6.1
+        run: |
+          curl -sSfL -o cosign https://github.com/sigstore/cosign/releases/download/v2.6.1/cosign-linux-amd64
+          echo "064954c5d8c7e3b28188eee5b1727b31c411550bc5fefd41aa672d3c761d103a  cosign" | sha256sum -c -
+          sudo install -m 0755 cosign /usr/local/bin/cosign
+          cosign version
       - name: Stage 1, decide which image digests may be approved
         run: scripts/demo_image_admission.sh "$RUNNER_TEMP/image-admission"
       - uses: helm/kind-action@v1
