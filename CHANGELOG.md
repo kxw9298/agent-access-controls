@@ -4,7 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Controls AAC-CH-05 (approve a container image by exact digest) and AAC-CH-06 (admit only images pinned to an approved digest) in the catalog, with a new enforcement point, `admission-controller`.
+- Threats T13 to T16 for the image path in the threat model.
+- A workflow that removes tool attribution footers from pull request descriptions.
+
+### Changed
+
+- Control catalog statuses now match v0.2.0: AAC-CH-01, AAC-CH-02 and AAC-CH-04 are implemented; AAC-CH-03 and AAC-AU-02 are partial, with the reason recorded next to each.
+- The README leads with the change path, says what a hardened pipeline already covers, lists all five policies and the attack harness, and marks roadmap versions as stages rather than release tags.
+- The reviewer quickstart and the review template cover the image path, the signed approval record and the attack harness. The quickstart no longer says the image path checks a digest only.
+- The architecture page describes the change path and the image path, not only the tool-call path.
 
 ## [0.2.0]
 

@@ -20,20 +20,28 @@ Mark each as run, read only, or not done.
 
 | Item | Run / read only / not done |
 | --- | --- |
-| Baseline: approved-plan, substituted-plan | |
+| Change path, no-binding baseline (all scenarios) | |
+| Change path, hardened baseline (all scenarios) | |
 | Approval binding: approved-plan | |
 | Approval binding: substituted-plan | |
+| Approval binding: replan-after-approval | |
 | Approval binding: different-agent | |
 | Approval binding: expired-approval | |
 | Approval binding: self-approval | |
 | Approval binding: no-approval | |
 | Reference GitHub Actions pipeline | |
+| Image path, stage 1: approval decisions | |
+| Image path, stage 1: signed-record checks (altered, unsigned, other key, inconsistent) | |
+| Image path, stage 2: admission in a cluster (which cluster and version) | |
+| Attack harness: catalog and fuzzer | |
+| Attack harness: replay of the stored LLM attacker inputs | |
+| Attack harness: your own inputs through `--candidates` | |
 | Source or policies (Rego) | |
 | Documentation only | |
 
 ## Observed results
 
-- Did every case behave as the quickstart says? List any that did not, with the `results.json` entry or output.
+- Did every case behave as the quickstart says? List any that did not, with the `results.json` entry, the harness `summary.json`, or the script output.
 - Did you try anything beyond the listed cases? What, and what happened?
 
 ## Limitations you found
